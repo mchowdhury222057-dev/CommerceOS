@@ -1,0 +1,29 @@
+{
+  "name": "commerceos",
+  "private": true,
+  "version": "0.1.0",
+  "description": "CommerceOS - Multi-Tenant E-Commerce SaaS Platform",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "prisma:generate": "npm run generate --workspace=packages/prisma",
+    "prisma:migrate": "npm run migrate:dev --workspace=packages/prisma",
+    "seed": "npm run seed --workspace=packages/prisma"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "allowScripts": {
+    "@prisma/client@5.22.0": true,
+    "@prisma/engines@5.22.0": true,
+    "esbuild@0.28.1": true,
+    "prisma@5.22.0": true
+  }
+}

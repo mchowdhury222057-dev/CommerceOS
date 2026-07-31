@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Design tokens - per SRS Addendum Part A.11 */
+:root {
+  --color-primary: #4F46E5;
+  --color-primary-hover: #4338CA;
+  --surface-page: #F8FAFC;
+  --surface-card: #FFFFFF;
+  --border-default: #E2E8F0;
+  --text-primary: #0F172A;
+  --text-secondary: #475569;
+}
+
+body {
+  @apply bg-surface-page text-text-primary font-sans;
+}

@@ -1,0 +1,25 @@
+{
+  "name": "@commerceos/prisma",
+  "version": "0.1.0",
+  "private": true,
+  "main": "generated/client/index.js",
+  "types": "generated/client/index.d.ts",
+  "scripts": {
+    "generate": "prisma generate",
+    "migrate:dev": "prisma migrate dev",
+    "studio": "prisma studio",
+    "seed": "tsx prisma/seed.ts"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.20.0"
+  },
+  "devDependencies": {
+    "bcryptjs": "^3.0.3",
+    "dotenv": "^16.6.1",
+    "prisma": "^5.20.0",
+    "tsx": "^4.23.1"
+  }
+}

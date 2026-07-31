@@ -1,0 +1,470 @@
+// CommerceOS core V1 schema - per SRS Part 20 (reconstructed from addendum Parts
+// B/D/M, since the base SRS's own Part 20 entity table was not attached).
+// Non-negotiable rule (Part 6.3): every tenant-scoped model carries storeId and
+// every query outside Master Admin routes must filter by it at the application layer.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Modeled as an enum rather than a separate Role table: V1 has a small, fixed
+// role set (Part 4.1) with no per-store custom roles, so an enum keeps every
+// tenant-scoped query's role check a simple, indexable equality check.
+enum UserRole {
+  MASTER_ADMIN
+  STORE_OWNER
+  STORE_MANAGER
+  INVENTORY_MANAGER
+  ORDER_MANAGER
+  CUSTOMER_SUPPORT
+}
+
+// Per Part D.1.1 - a staff account exists in Invited status with no usable
+// credentials until the invite token is redeemed and a password is set.
+enum UserStatus {
+  INVITED
+  ACTIVE
+}
+
+enum StoreStatus {
+  PENDING_SETUP
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+enum StorefrontVersionStatus {
+  DRAFT
+  PUBLISHED
+  OBSOLETE
+}
+
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  RETURNED
+  CANCELLED
+}
+
+// Per Part 9.2 - only CASH_ON_DELIVERY is used in V1; the other values are
+// reserved so V2 payment work (Part 11.2/11.3) needs no schema migration.
+enum PaymentMethod {
+  CASH_ON_DELIVERY
+  MANUAL_BKASH_VERIFICATION
+  AUTOMATED_GATEWAY
+}
+
+enum RiskLevel {
+  NONE
+  CAUTION
+  HIGH_RISK
+}
+
+// Per Part B.2.6's Media Library - the usage facet used by its Filter Bar.
+enum MediaUsageType {
+  PRODUCT
+  BANNER
+  LOGO
+  OTHER
+}
+
+model Store {
+  id        String      @id @default(cuid())
+  name      String
+  slug      String      @unique
+  status    StoreStatus @default(PENDING_SETUP)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  // Per Part D.2.2 - suspension always carries a reason, shown to both the
+  // Store Owner and the audit trail; never an unexplained action.
+  suspendedAt     DateTime?
+  suspendedReason String?
+
+  // Reserved, unused in V1 (Part 25/Part N.1) - no billing/reseller model
+  // exists yet; these fields exist only so V5 white-label work needs no
+  // migration when it lands.
+  planTier   String?
+  resellerId String?
+
+  users          User[]
+  products       Product[]
+  categories     Category[]
+  orders         Order[]
+  customers      Customer[]
+  storefront     Storefront?
+  auditLogs      AuditLog[]             @relation("AuditLogTargetStore")
+  impersonations ImpersonationSession[]
+  deliveryAreas  DeliveryArea[]
+  mediaAssets    MediaAsset[]
+  notifications  Notification[]
+  featureFlags   StoreFeatureFlag[]
+  eventFailures  EventFailureLog[]
+
+  @@index([status])
+}
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  name         String
+  passwordHash String
+  role         UserRole
+  status       UserStatus @default(ACTIVE)
+  // null only for MASTER_ADMIN, per Part 4/20.1 (User belongs to zero or one Store)
+  storeId      String?
+  store        Store?     @relation(fields: [storeId], references: [id])
+  createdAt    DateTime   @default(now())
+
+  // Per Part D.1.1 - single-use invite token; only its hash is ever persisted.
+  inviteTokenHash      String?   @unique
+  inviteTokenExpiresAt DateTime?
+  // Per Part D.1.1's audit rule - StaffAccountActivated is attributed to the
+  // original inviting admin, not the invitee performing the redeem request.
+  invitedByUserId      String?
+
+  createdStorefrontVersions StorefrontVersion[]
+  auditLogEntries           AuditLog[]             @relation("AuditLogActor")
+  impersonationsAsAdmin     ImpersonationSession[] @relation("ImpersonationAdmin")
+
+  @@index([storeId])
+}
+
+model Storefront {
+  id                 String             @id @default(cuid())
+  storeId            String             @unique
+  store              Store              @relation(fields: [storeId], references: [id])
+  publishedVersionId String?            @unique
+  publishedVersion   StorefrontVersion? @relation("PublishedVersion", fields: [publishedVersionId], references: [id])
+  draftVersionId     String?            @unique
+  draftVersion       StorefrontVersion? @relation("DraftVersion", fields: [draftVersionId], references: [id])
+
+  versions StorefrontVersion[] @relation("AllVersions")
+}
+
+model StorefrontVersion {
+  id            String                  @id @default(cuid())
+  storefrontId  String
+  storefront    Storefront              @relation("AllVersions", fields: [storefrontId], references: [id])
+  versionNumber Int
+  status        StorefrontVersionStatus @default(DRAFT)
+  layout        Json
+  themeSettings Json
+  createdById   String
+  createdBy     User                    @relation(fields: [createdById], references: [id])
+  publishedAt   DateTime?
+  createdAt     DateTime                @default(now())
+
+  publishedFor Storefront? @relation("PublishedVersion")
+  draftFor     Storefront? @relation("DraftVersion")
+
+  @@unique([storefrontId, versionNumber])
+  @@index([storefrontId, status])
+}
+
+model Category {
+  id               String     @id @default(cuid())
+  storeId          String
+  store            Store      @relation(fields: [storeId], references: [id])
+  name             String
+  slug             String
+  parentCategoryId String?
+  parentCategory   Category?  @relation("CategoryTree", fields: [parentCategoryId], references: [id])
+  children         Category[] @relation("CategoryTree")
+  products         Product[]
+
+  @@unique([storeId, slug])
+  @@index([storeId])
+}
+
+model Product {
+  id                String        @id @default(cuid())
+  storeId           String
+  store             Store         @relation(fields: [storeId], references: [id])
+  name              String
+  description       String
+  categoryId        String?
+  category          Category?     @relation(fields: [categoryId], references: [id])
+  basePrice         Decimal       @db.Decimal(10, 2)
+  images            String[]
+  status            ProductStatus @default(DRAFT)
+  metaTitle         String?
+  metaDescription   String?
+  slug              String
+  lowStockThreshold Int           @default(5)
+  createdAt         DateTime      @default(now())
+
+  variants   ProductVariant[]
+  orderItems OrderItem[]
+
+  @@unique([storeId, slug])
+  @@index([storeId, status])
+}
+
+model ProductVariant {
+  id            String   @id @default(cuid())
+  productId     String
+  product       Product  @relation(fields: [productId], references: [id])
+  sku           String   @unique
+  attributes    Json // e.g. { size: "M", color: "Red" }
+  stock         Int      @default(0)
+  priceOverride Decimal? @db.Decimal(10, 2)
+
+  orderItems OrderItem[]
+
+  @@index([productId])
+}
+
+model Customer {
+  id              String    @id @default(cuid())
+  storeId         String
+  store           Store     @relation(fields: [storeId], references: [id])
+  name            String
+  // Primary identifier for COD commerce, per Part 10.1
+  phone           String
+  // Optional password login variant alongside OTP, per Part 10.1/B.1 Login page
+  passwordHash    String?
+  totalOrders     Int       @default(0)
+  deliveredOrders Int       @default(0)
+  refusedOrders   Int       @default(0)
+  riskLevel       RiskLevel @default(NONE)
+  createdAt       DateTime  @default(now())
+
+  orders    Order[]
+  addresses CustomerAddress[]
+
+  @@unique([storeId, phone])
+  @@index([storeId, riskLevel])
+}
+
+// Per Part B.1.14's Profile page - saved delivery addresses; deleting a saved
+// address never alters a past order's own delivery-address snapshot on Order.
+model CustomerAddress {
+  id            String   @id @default(cuid())
+  customerId    String
+  customer      Customer @relation(fields: [customerId], references: [id])
+  label         String?
+  recipientName String
+  phone         String
+  addressLine   String
+  city          String
+  isDefault     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  @@index([customerId])
+}
+
+// Per Part B.2.9 Store Settings - at least one delivery area with a charge
+// must exist before Checkout will accept an order for that store.
+model DeliveryArea {
+  id             String   @id @default(cuid())
+  storeId        String
+  store          Store    @relation(fields: [storeId], references: [id])
+  name           String
+  deliveryCharge Decimal  @db.Decimal(10, 2)
+  createdAt      DateTime @default(now())
+
+  orders Order[]
+
+  @@unique([storeId, name])
+  @@index([storeId])
+}
+
+model Order {
+  id                 String        @id @default(cuid())
+  storeId            String
+  store              Store         @relation(fields: [storeId], references: [id])
+  customerId         String
+  customer           Customer      @relation(fields: [customerId], references: [id])
+  status             OrderStatus   @default(PENDING)
+  paymentMethod      PaymentMethod @default(CASH_ON_DELIVERY)
+  // Per Part 9.3 - set after staff calls to confirm intent before shipment
+  codConfirmedByCall Boolean       @default(false)
+  codCallNote        String?
+  callAttempts       Int           @default(0)
+  // Snapshotted at checkout, per Part B.1 Checkout - deleting a Customer's
+  // saved address later must never alter a past order's own delivery record.
+  deliveryAddress    String
+  deliveryAreaId     String?
+  deliveryArea       DeliveryArea? @relation(fields: [deliveryAreaId], references: [id])
+  courierName        String?
+  courierTrackingId  String?
+  courierStatusNote  String?
+  cancelledReason    String?
+  // Per Part D.5.1 - the courier's cash collection at Delivered IS the payment
+  // event in V1; there is no separate payment-approval step.
+  isPaid             Boolean       @default(false)
+  // Per Part D.5.2 - sequential, store-scoped, generated once contents are final.
+  invoiceNumber      Int?
+  invoiceUrl         String?
+  total              Decimal       @db.Decimal(10, 2)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  items         OrderItem[]
+  statusHistory OrderStatusHistory[]
+
+  @@unique([storeId, invoiceNumber])
+  @@index([storeId, status])
+  @@index([storeId, createdAt])
+}
+
+model OrderItem {
+  id        String         @id @default(cuid())
+  orderId   String
+  order     Order          @relation(fields: [orderId], references: [id])
+  productId String
+  product   Product        @relation(fields: [productId], references: [id])
+  variantId String
+  variant   ProductVariant @relation(fields: [variantId], references: [id])
+  quantity  Int
+  unitPrice Decimal        @db.Decimal(10, 2)
+
+  @@index([orderId])
+}
+
+// Per Part D.4.2 - every status transition is appended here (status, actor,
+// timestamp, note), backing the Timeline component on Order Tracking (Part
+// A.12/C.3) and giving Store Owners a full accountability trail across staff.
+model OrderStatusHistory {
+  id        String      @id @default(cuid())
+  orderId   String
+  order     Order       @relation(fields: [orderId], references: [id])
+  status    OrderStatus
+  actorId   String?
+  note      String?
+  createdAt DateTime    @default(now())
+
+  @@index([orderId, createdAt])
+}
+
+// Per Part B.2.6 Media Library - a store-scoped, Cloudinary-backed asset
+// manager so staff reuse existing assets instead of re-uploading duplicates.
+model MediaAsset {
+  id         String         @id @default(cuid())
+  storeId    String
+  store      Store          @relation(fields: [storeId], references: [id])
+  url        String
+  publicId   String         @unique
+  filename   String
+  usageType  MediaUsageType @default(OTHER)
+  uploadedBy String?
+  createdAt  DateTime       @default(now())
+
+  @@index([storeId, usageType])
+}
+
+// Per Part 17/Part C.4 Notification component - the persistent, dismiss-perentry list surfaced from the Navbar bell icon (new-order/low-stock/high-risk
+// alerts), distinct from the ephemeral client-side Toast queue (Part E.1.6).
+model Notification {
+  id              String   @id @default(cuid())
+  storeId         String?
+  store           Store?   @relation(fields: [storeId], references: [id])
+  recipientUserId String?
+  type            String
+  message         String
+  isRead          Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  @@index([storeId, isRead, createdAt])
+  @@index([recipientUserId, isRead])
+}
+
+// Per Part 7.5 - platform-wide feature flag; a platform-wide row disabled
+// here overrides any per-store enable in StoreFeatureFlag, never the reverse.
+model FeatureFlag {
+  key         String   @id
+  enabled     Boolean  @default(false)
+  description String?
+  updatedAt   DateTime @updatedAt
+}
+
+// Per Part 7.5 - per-store override of a platform feature flag, used for
+// staged V2/V3 rollout; only ever effective while the platform-wide flag
+// of the same key is enabled.
+model StoreFeatureFlag {
+  id        String   @id @default(cuid())
+  storeId   String
+  store     Store    @relation(fields: [storeId], references: [id])
+  key       String
+  enabled   Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+
+  @@unique([storeId, key])
+}
+
+model AuditLog {
+  id                     String                @id @default(cuid())
+  actorId                String
+  actor                  User                  @relation("AuditLogActor", fields: [actorId], references: [id])
+  actorRole              UserRole
+  action                 String
+  targetStoreId          String?
+  targetStore            Store?                @relation("AuditLogTargetStore", fields: [targetStoreId], references: [id])
+  targetResource         String?
+  impersonationSessionId String?
+  impersonationSession   ImpersonationSession? @relation(fields: [impersonationSessionId], references: [id])
+  // Free-form structured detail (e.g. { previousStatus, newStatus } for a
+  // status change) supplementing the human-readable `action` name.
+  metadata               Json?
+  createdAt              DateTime              @default(now())
+
+  // Immutable, append-only per Part 15.3 - no update/delete path is exposed
+  // at the application layer.
+  @@index([targetStoreId, createdAt])
+  @@index([actorId, createdAt])
+}
+
+model ImpersonationSession {
+  id            String    @id @default(cuid())
+  masterAdminId String
+  masterAdmin   User      @relation("ImpersonationAdmin", fields: [masterAdminId], references: [id])
+  targetStoreId String
+  targetStore   Store     @relation(fields: [targetStoreId], references: [id])
+  // Why the session was started, shown in the Audit Log detail view.
+  reason        String?
+  startedAt     DateTime  @default(now())
+  endedAt       DateTime?
+  // "manual" (End Session clicked) vs "expired" (time-boxed TTL elapsed),
+  // per Part M.2's ImpersonationSessionEnded event shape.
+  endReason     String?
+
+  auditLogs AuditLog[]
+
+  @@index([targetStoreId])
+  @@index([masterAdminId, endedAt])
+}
+
+// Per Part M.5.1 - V1's dead-letter mechanism: a queryable table rather than
+// a real dead-letter queue, appropriate for the in-process event bus (Part
+// M.1). Surfaced in the Super Admin Panel so unresolved failures are visible.
+model EventFailureLog {
+  id            String   @id @default(cuid())
+  storeId       String?
+  store         Store?   @relation(fields: [storeId], references: [id])
+  eventName     String
+  payload       Json
+  errorMessage  String
+  attemptCount  Int      @default(1)
+  lastAttemptAt DateTime @default(now())
+  resolved      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  @@index([storeId, resolved])
+  @@index([eventName, createdAt])
+}

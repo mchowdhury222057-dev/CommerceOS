@@ -1,0 +1,29 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "api",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:api"],
+      "port": 4000
+    },
+    {
+      "name": "admin-panel",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:admin"],
+      "port": 5173
+    },
+    {
+      "name": "store-dashboard",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:dashboard"],
+      "port": 5174
+    },
+    {
+      "name": "storefront",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:storefront"],
+      "port": 5175
+    }
+  ]
+}
