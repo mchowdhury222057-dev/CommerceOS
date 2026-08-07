@@ -55,3 +55,8 @@ export const passwordResetRateLimiter = createAuthRateLimiter({ windowMs: 60_000
 
 // Per Part D.1.1 - bounds guessing attempts against a single-use invite token.
 export const inviteRedeemRateLimiter = createAuthRateLimiter({ windowMs: 60_000, max: 10, keyPrefix: "invite-redeem" });
+
+// Per Part 6.1 - a public, unauthenticated endpoint that writes to the
+// database (Store + User rows), so it needs the same abuse-resistant
+// posture as login rather than being left unguarded.
+export const signupRateLimiter = createAuthRateLimiter({ windowMs: 60_000, max: 5, keyPrefix: "signup" });

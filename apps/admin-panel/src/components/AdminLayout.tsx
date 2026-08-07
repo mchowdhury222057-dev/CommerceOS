@@ -8,7 +8,7 @@ export function AdminLayout() {
       <Sidebar />
       <div className="flex flex-1 flex-col">
         <ImpersonationBanner />
-        <main className="flex-1 overflow-y-auto bg-surface-page p-8">
+        <main className="admin-content-bg flex-1 overflow-y-auto p-8">
           <Outlet />
         </main>
       </div>

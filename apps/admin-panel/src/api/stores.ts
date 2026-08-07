@@ -38,3 +38,7 @@ export function setStoreStatus(
 ): Promise<{ store: AdminStore }> {
   return api.patch<{ store: AdminStore }>(`/api/admin/stores/${storeId}/status`, input);
 }
+
+export function getStore(storeId: string): Promise<{ store: AdminStore }> {
+  return api.get<{ store: AdminStore }>(`/api/admin/stores/${storeId}`);
+}

@@ -34,6 +34,9 @@ interface FakeTx {
     create: ReturnType<typeof vi.fn>;
   };
   impersonationSession: { create: ReturnType<typeof vi.fn>; findUnique: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
+  product: { findFirst: ReturnType<typeof vi.fn>; create: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
+  productVariant: { findFirst: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
+  productImage: { findFirst: ReturnType<typeof vi.fn>; create: ReturnType<typeof vi.fn> };
 }
 
 const mockPrisma: FakeTx & { $transaction: ReturnType<typeof vi.fn> } = {
@@ -47,6 +50,9 @@ const mockPrisma: FakeTx & { $transaction: ReturnType<typeof vi.fn> } = {
     create: vi.fn(),
   },
   impersonationSession: { create: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
+  product: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
+  productVariant: { findFirst: vi.fn(), update: vi.fn() },
+  productImage: { findFirst: vi.fn(), create: vi.fn() },
   $transaction: vi.fn(),
 };
 vi.mock("../lib/prisma.js", () => ({ prisma: mockPrisma }));
@@ -54,8 +60,10 @@ vi.mock("../lib/prisma.js", () => ({ prisma: mockPrisma }));
 const { suspendStore } = await import("./store.service.js");
 const { publishTheme } = await import("./theme.service.js");
 const { startImpersonation, endImpersonation } = await import("./impersonation.service.js");
+const { createProduct, archiveProduct, updateVariant, addProductImage } = await import("./product.service.js");
 
 const masterAdmin = { id: "admin-1", email: "admin@platform.test", role: "MASTER_ADMIN" as const, storeId: null };
+const storeOwner = { id: "owner-1", email: "owner@store.test", role: "STORE_OWNER" as const, storeId: "store-1" };
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -147,5 +155,87 @@ describe("audit coverage - Impersonation (Part 15.2)", () => {
     await endImpersonation({ sessionId: "sess-1", actorId: masterAdmin.id });
 
     expect(mockWriteAuditLog).not.toHaveBeenCalled();
+  });
+});
+
+// Per Part 7.5/18.2 - Store Owner (and staff) catalog actions are audited
+// the same way Master Admin actions are, so the Store Activity view isn't
+// blind to day-to-day store activity. actorId here is the Store Owner, not
+// a Master Admin - proving the audit trail correctly attributes activity
+// to whoever actually performed it.
+describe("audit coverage - Product Management (Part 8.1)", () => {
+  it("createProduct writes a ProductCreated audit entry attributed to the Store Owner", async () => {
+    mockPrisma.product.create.mockResolvedValue({ id: "prod-1", name: "Test Product", status: "DRAFT" });
+
+    await createProduct(
+      {
+        storeId: "store-1",
+        name: "Test Product",
+        description: "A product",
+        basePrice: 100,
+        slug: "test-product",
+        variants: [{ sku: "SKU1", attributes: {}, stock: 5 }],
+      },
+      storeOwner,
+    );
+
+    expect(mockWriteAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "ProductCreated", targetStoreId: "store-1", actorId: storeOwner.id }),
+    );
+  });
+
+  it("archiveProduct writes a ProductDeactivated audit entry", async () => {
+    mockPrisma.product.findFirst.mockResolvedValue({
+      id: "prod-1",
+      storeId: "store-1",
+      name: "Test Product",
+      status: "ACTIVE",
+      variants: [],
+    });
+    mockPrisma.product.update.mockResolvedValue({ id: "prod-1", status: "ARCHIVED" });
+
+    await archiveProduct("store-1", "prod-1", storeOwner);
+
+    expect(mockWriteAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "ProductDeactivated", targetStoreId: "store-1", actorId: storeOwner.id }),
+    );
+  });
+
+  it("updateVariant writes a ProductStockAdjusted audit entry when stock changes", async () => {
+    mockPrisma.product.findFirst.mockResolvedValue({ id: "prod-1", storeId: "store-1", name: "Test Product" });
+    mockPrisma.productVariant.findFirst.mockResolvedValue({ id: "var-1", productId: "prod-1", sku: "SKU1", stock: 10 });
+    mockPrisma.productVariant.update.mockResolvedValue({ id: "var-1", stock: 3 });
+
+    await updateVariant("store-1", "prod-1", "var-1", { stock: 3 }, storeOwner);
+
+    expect(mockWriteAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "ProductStockAdjusted",
+        targetStoreId: "store-1",
+        metadata: expect.objectContaining({ previousStock: 10, newStock: 3 }),
+      }),
+    );
+  });
+
+  it("updateVariant does NOT write an audit entry when stock is unchanged (e.g. only priceOverride edited)", async () => {
+    mockPrisma.product.findFirst.mockResolvedValue({ id: "prod-1", storeId: "store-1", name: "Test Product" });
+    mockPrisma.productVariant.findFirst.mockResolvedValue({ id: "var-1", productId: "prod-1", sku: "SKU1", stock: 10 });
+    mockPrisma.productVariant.update.mockResolvedValue({ id: "var-1", stock: 10 });
+
+    await updateVariant("store-1", "prod-1", "var-1", { priceOverride: 50 }, storeOwner);
+
+    expect(mockWriteAuditLog).not.toHaveBeenCalled();
+  });
+
+  it("addProductImage writes a ProductImageUploaded audit entry", async () => {
+    mockPrisma.product.findFirst.mockResolvedValue({ id: "prod-1", storeId: "store-1", name: "Test Product" });
+    mockPrisma.productImage.findFirst.mockResolvedValue(null);
+    mockPrisma.productImage.create.mockResolvedValue({ id: "img-1", url: "https://cloudinary.test/img-1.png" });
+
+    await addProductImage("store-1", "prod-1", { url: "https://cloudinary.test/img-1.png", cloudinaryPublicId: "img-1" }, storeOwner);
+
+    expect(mockWriteAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "ProductImageUploaded", targetStoreId: "store-1", actorId: storeOwner.id }),
+    );
   });
 });

@@ -49,20 +49,29 @@ interface RequestOptions extends Omit<RequestInit, "body"> {
   skipAuthRetry?: boolean;
 }
 
+// FormData (image uploads) must NOT be JSON.stringify'd, and must NOT get an
+// explicit Content-Type - the browser sets its own multipart boundary, which
+// a manually-set header would break.
+function buildBody(body: unknown): { body: BodyInit | undefined; contentTypeHeader: Record<string, string> } {
+  if (body instanceof FormData) return { body, contentTypeHeader: {} };
+  return { body: body !== undefined ? JSON.stringify(body) : undefined, contentTypeHeader: { "Content-Type": "application/json" } };
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { body, skipAuthRetry, headers, ...rest } = options;
+  const { body: rawBody, skipAuthRetry, headers, ...rest } = options;
   const token = useAuthStore.getState().accessToken;
+  const { body, contentTypeHeader } = buildBody(rawBody);
 
   const doFetch = () =>
     fetch(`${API_BASE_URL}${path}`, {
       ...rest,
       credentials: "include",
       headers: {
-        "Content-Type": "application/json",
+        ...contentTypeHeader,
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...headers,
       },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      body,
     });
 
   let res = await doFetch();
@@ -74,11 +83,11 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
         ...rest,
         credentials: "include",
         headers: {
-          "Content-Type": "application/json",
+          ...contentTypeHeader,
           Authorization: `Bearer ${useAuthStore.getState().accessToken}`,
           ...headers,
         },
-        body: body !== undefined ? JSON.stringify(body) : undefined,
+        body,
       });
     } else {
       useAuthStore.getState().clear();
@@ -100,6 +109,7 @@ export const api = {
   post: <T>(path: string, body?: unknown, options?: RequestOptions) => request<T>(path, { ...options, method: "POST", body }),
   put: <T>(path: string, body?: unknown) => request<T>(path, { method: "PUT", body }),
   patch: <T>(path: string, body?: unknown) => request<T>(path, { method: "PATCH", body }),
+  delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
 };
 
 // Called once at app boot (see main.tsx) to silently restore a session from

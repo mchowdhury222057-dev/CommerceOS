@@ -2,11 +2,12 @@ import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import type { Role, AuthUser } from "@commerceos/types";
+import { Prisma } from "@commerceos/prisma/generated/client";
 import { prisma } from "../lib/prisma.js";
-import { redis } from "../lib/redis.js";
 import { AppError } from "../lib/errors.js";
 import { emit } from "../events/bus.js";
 import { writeAuditLog } from "../lib/audit.js";
+import { sendPasswordResetLink } from "../lib/mailer.js";
 import { createSession, revokeAllSessionsForUser, revokeSession, rotateSession, type CreatedSession } from "./session.service.js";
 
 // Per Part 19.4 - short-lived (self-contained) access token, paired with a
@@ -15,7 +16,20 @@ const JWT_SECRET = process.env.JWT_ACCESS_SECRET ?? process.env.JWT_SECRET ?? "d
 const ACCESS_TOKEN_TTL = "15m";
 const BCRYPT_ROUNDS = 10;
 const PASSWORD_MIN_LENGTH = 8;
-const RESET_TOKEN_TTL_SECONDS = 30 * 60; // 30 minutes, Part D.1.5
+const RESET_TOKEN_TTL_MS = 30 * 60 * 1000; // 30 minutes, Part D.1.5
+// Store Dashboard's / Admin Panel's own dev-server origins
+// (apps/store-dashboard, apps/admin-panel vite.config.ts); override via env
+// in any deployed environment.
+const STORE_DASHBOARD_URL = process.env.STORE_DASHBOARD_URL ?? "http://localhost:5174";
+const ADMIN_PANEL_URL = process.env.ADMIN_PANEL_URL ?? "http://localhost:5173";
+
+// Per Part 4/20.1's "one system, three skins" - a reset link must open in
+// the app the user actually signs into. MASTER_ADMIN uses the Admin Panel;
+// every store-scoped role (STORE_OWNER and staff) uses the Store Dashboard.
+// Storefront customers aren't part of this staff-auth reset flow at all.
+function resetLinkOriginFor(role: Role): string {
+  return role === "MASTER_ADMIN" ? ADMIN_PANEL_URL : STORE_DASHBOARD_URL;
+}
 
 export interface AuthResult {
   accessToken: string;
@@ -40,8 +54,6 @@ function assertPasswordPolicy(password: string) {
     throw AppError.validation(`Password must be at least ${PASSWORD_MIN_LENGTH} characters`, "WEAK_PASSWORD");
   }
 }
-
-const resetTokenKey = (tokenHash: string) => `password-reset:${tokenHash}`;
 
 // Per Part D.1.3 - credential presence/format validated by the route; a
 // generic 401 never reveals whether the email exists, to blunt accountenumeration via response-shape or timing differences.
@@ -76,6 +88,149 @@ export async function login(email: string, password: string): Promise<AuthResult
     payload: { userId: record.id, role: record.role, storeId: record.storeId },
   });
 
+  return issueAuthResult(user);
+}
+
+export interface SignupInput {
+  storeName: string;
+  slug: string;
+  ownerName: string;
+  email: string;
+  password: string;
+}
+
+// Per Part 6.1 - the self-signup path: a prospective Store Owner creates
+// their own account and their Store's shell in one step, landing in
+// Pending Setup (Part 6.2) until a Master Administrator approves it via the
+// same Approve action already built in apps/admin-panel. Unlike the Master
+// Admin's "+ Create Store" path (store.service.ts's createStore, where the
+// owner starts Invited pending an invite-token redemption), the owner here
+// sets their own password directly, so their account is Active immediately -
+// only the STORE itself is gated on approval, not their ability to log in
+// and see their own pending-approval screen.
+export async function signup(input: SignupInput): Promise<AuthResult> {
+  assertPasswordPolicy(input.password);
+  const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
+
+  let created: { storeId: string; storeName: string; slug: string; userId: string; userEmail: string; role: Role; storeIdForUser: string | null };
+  try {
+    created = await prisma.$transaction(async (tx) => {
+      const store = await tx.store.create({
+        data: { name: input.storeName, slug: input.slug, status: "PENDING_SETUP" },
+      });
+      const user = await tx.user.create({
+        data: {
+          email: input.email,
+          name: input.ownerName,
+          passwordHash,
+          role: "STORE_OWNER",
+          status: "ACTIVE",
+          storeId: store.id,
+        },
+      });
+      await tx.storefront.create({ data: { storeId: store.id } });
+      return {
+        storeId: store.id,
+        storeName: store.name,
+        slug: store.slug,
+        userId: user.id,
+        userEmail: user.email,
+        role: user.role,
+        storeIdForUser: user.storeId,
+      };
+    });
+  } catch (error) {
+    // Same fix as the "+ Create Store" bug (store.service.ts's createStore) -
+    // two unique constraints (Store.slug, User.email) can fire in this one
+    // transaction, and Prisma's P2002 code alone doesn't say which; read
+    // error.meta.target rather than assuming it's always the slug.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      const target = (error.meta?.target as string[] | undefined) ?? [];
+      if (target.includes("email")) {
+        throw AppError.conflict(`An account with email "${input.email}" already exists`, "DUPLICATE_EMAIL");
+      }
+      throw AppError.conflict(`Slug "${input.slug}" is already in use`, "DUPLICATE_SLUG");
+    }
+    throw error;
+  }
+
+  // Per Part 15.3 - attributed to the new user themselves (a self-caused
+  // action), distinct from "StoreCreated" (the Master-Admin-initiated path)
+  // so the Audit Log viewer shows which path actually brought a store into
+  // existence.
+  await writeAuditLog({
+    actorId: created.userId,
+    actorRole: created.role,
+    action: "StoreSelfSignedUp",
+    targetStoreId: created.storeId,
+    targetResource: `Store:${created.storeId}`,
+  });
+
+  emit("StoreCreated", {
+    storeId: created.storeId,
+    actorId: created.userId,
+    payload: { storeId: created.storeId, ownerUserId: created.userId, storeName: created.storeName, slug: created.slug },
+  });
+
+  const user: AuthUser = { id: created.userId, email: created.userEmail, role: created.role, storeId: created.storeIdForUser };
+  return issueAuthResult(user);
+}
+
+const ADMIN_SETUP_KEY = process.env.ADMIN_SETUP_KEY;
+
+// Constant-time comparison so a wrong setup key can't be narrowed down via
+// response-timing differences the way a naive `===` could leak.
+function safeEqual(a: string, b: string): boolean {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
+export interface AdminSignupInput {
+  name: string;
+  email: string;
+  password: string;
+  setupKey: string;
+}
+
+// Per Part 4/20.1 - a second entry point for creating a Master Administrator
+// account, gated by a shared secret (ADMIN_SETUP_KEY) rather than open
+// signup like the Store Owner path above, since this role is platform-wide
+// and not scoped to any one store. The key is never configured -> fail
+// closed, same as a wrong key; the caller can't distinguish "missing" from
+// "wrong" from the error alone.
+// TODO(security): add rate-limiting to this endpoint once a general
+// abuse-hardening pass covers the auth routes (deferred this milestone).
+export async function signupMasterAdmin(input: AdminSignupInput): Promise<AuthResult> {
+  if (!ADMIN_SETUP_KEY || !safeEqual(input.setupKey, ADMIN_SETUP_KEY)) {
+    throw AppError.unauthorized("Invalid setup key", "INVALID_SETUP_KEY");
+  }
+  assertPasswordPolicy(input.password);
+  const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
+
+  let created: { id: string; email: string };
+  try {
+    created = await prisma.user.create({
+      data: { email: input.email, name: input.name, passwordHash, role: "MASTER_ADMIN", status: "ACTIVE", storeId: null },
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      throw AppError.conflict(`An account with email "${input.email}" already exists`, "DUPLICATE_EMAIL");
+    }
+    throw error;
+  }
+
+  // Per Part 15.3 - attributed to the new admin themselves (a self-caused
+  // action), matching the StoreSelfSignedUp precedent above.
+  await writeAuditLog({
+    actorId: created.id,
+    actorRole: "MASTER_ADMIN",
+    action: "MasterAdminSignedUp",
+    targetResource: `User:${created.id}`,
+  });
+
+  const user: AuthUser = { id: created.id, email: created.email, role: "MASTER_ADMIN", storeId: null };
   return issueAuthResult(user);
 }
 
@@ -136,37 +291,49 @@ export async function redeemStaffInvite(token: string, password: string): Promis
 }
 
 // Per Part D.1.5 - the request-reset endpoint never reveals whether the
-// submitted email exists; a reset token is only issued when it does.
-export async function requestPasswordReset(email: string): Promise<void> {
+// submitted email exists; a reset token (persisted, not Redis-ephemeral, so
+// it carries the same usedAt/expiresAt auditability as the rest of the
+// system) is only issued when it does. Returns the link so the route can
+// surface it in dev mode - see sendPasswordResetLink for why that's safe to
+// do here but must never ship as-is once real email exists.
+export async function requestPasswordReset(email: string): Promise<string | null> {
   const record = await prisma.user.findUnique({ where: { email } });
-  if (!record || record.status !== "ACTIVE") return;
+  if (!record || record.status !== "ACTIVE") return null;
 
   const token = crypto.randomBytes(32).toString("hex");
-  const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
-  await redis.set(resetTokenKey(tokenHash), record.id, "EX", RESET_TOKEN_TTL_SECONDS);
+  await prisma.passwordResetToken.create({
+    data: { userId: record.id, token, expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS) },
+  });
+  const resetLink = `${resetLinkOriginFor(record.role)}/reset-password?token=${token}`;
 
   emit("PasswordResetRequested", { storeId: record.storeId, actorId: record.id, payload: { userId: record.id } });
+  await sendPasswordResetLink(record.email, resetLink);
 
-  // Real email/SMS dispatch is Phase-14 scope (Part 17); unlike staff
-  // invites, the raw token is never returned from this endpoint - its
-  // response must be identical whether or not the account exists.
+  return resetLink;
 }
 
 // Per Part D.1.5 - completing a reset invalidates every existing session
 // across all devices, since a reset is frequently triggered by a suspected
-// compromise. The reset token is single-use regardless of outcome.
+// compromise. The reset token is single-use regardless of outcome, and any
+// other outstanding unused tokens for the same user are invalidated too, so
+// an older still-live link can't be used after a newer request supersedes it.
 export async function confirmPasswordReset(token: string, newPassword: string): Promise<void> {
   assertPasswordPolicy(newPassword);
-  const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
-  const userId = await redis.get(resetTokenKey(tokenHash));
-  if (!userId) {
+  const record = await prisma.passwordResetToken.findUnique({ where: { token } });
+  if (!record || record.usedAt || record.expiresAt < new Date()) {
     throw AppError.unauthorized("This reset link is invalid or has expired", "INVALID_RESET_TOKEN");
   }
-  await redis.del(resetTokenKey(tokenHash));
 
   const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
-  const updated = await prisma.user.update({ where: { id: userId }, data: { passwordHash } });
-  await revokeAllSessionsForUser(userId);
+  const [updated] = await prisma.$transaction([
+    prisma.user.update({ where: { id: record.userId }, data: { passwordHash } }),
+    prisma.passwordResetToken.update({ where: { id: record.id }, data: { usedAt: new Date() } }),
+    prisma.passwordResetToken.updateMany({
+      where: { userId: record.userId, usedAt: null, id: { not: record.id } },
+      data: { usedAt: new Date() },
+    }),
+  ]);
+  await revokeAllSessionsForUser(updated.id);
 
   if (updated.role === "MASTER_ADMIN" || updated.role === "STORE_OWNER") {
     await writeAuditLog({

@@ -26,7 +26,7 @@ export function ImpersonationBanner() {
   return (
     <div
       role="status"
-      className="flex items-center justify-between gap-4 bg-amber-impersonation px-6 py-3 text-sm font-medium text-slate-900"
+      className="flex items-center justify-between gap-4 bg-amber-impersonation px-6 py-3 text-sm font-medium text-text-primary"
     >
       <span>
         Editing as Master Admin — <strong>{session.targetStore?.name ?? session.targetStoreId}</strong>

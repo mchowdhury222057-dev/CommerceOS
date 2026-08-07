@@ -8,7 +8,11 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "node scripts/dev.mjs",
+    "dev": "concurrently -n api,dashboard,admin,storefront -c blue,green,magenta,yellow \"npm run dev --workspace=apps/api\" \"npm run dev --workspace=apps/store-dashboard\" \"npm run dev --workspace=apps/admin-panel\" \"npm run dev --workspace=apps/storefront\"",
+    "dev:api": "npm run dev --workspace=apps/api",
+    "dev:dashboard": "npm run dev --workspace=apps/store-dashboard",
+    "dev:admin": "npm run dev --workspace=apps/admin-panel",
+    "dev:storefront": "npm run dev --workspace=apps/storefront",
     "build": "npm run build --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
@@ -25,5 +29,8 @@
     "@prisma/engines@5.22.0": true,
     "esbuild@0.28.1": true,
     "prisma@5.22.0": true
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.4"
   }
 }

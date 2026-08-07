@@ -4,7 +4,7 @@ import { prisma } from "../lib/prisma.js";
 import { getAuthUser, requireAuth, requireMasterAdmin } from "../middleware/auth.js";
 import { asyncHandler } from "../middleware/error-handler.js";
 import { validateBody } from "../middleware/validate.js";
-import { activateStore, createStore, listStores, suspendStore } from "../services/store.service.js";
+import { activateStore, createStore, getStoreById, listStores, suspendStore } from "../services/store.service.js";
 import { getDashboardSummary } from "../services/dashboard.service.js";
 import { impersonationRouter } from "./impersonation.routes.js";
 import { themeRouter } from "./theme.routes.js";
@@ -33,6 +33,14 @@ adminRouter.get(
     const pageSize = req.query.pageSize ? Number(req.query.pageSize) : undefined;
     const result = await listStores({ status, search, page, pageSize });
     res.json(result);
+  }),
+);
+
+adminRouter.get(
+  "/stores/:storeId",
+  asyncHandler(async (req, res) => {
+    const store = await getStoreById(req.params.storeId);
+    res.json({ store });
   }),
 );
 
@@ -99,6 +107,10 @@ adminRouter.get(
     const [entries, total] = await Promise.all([
       prisma.auditLog.findMany({
         where,
+        // Per Part 7.5/18.2 - a raw actorId is not "who did what"; the
+        // Store Activity view (and this same endpoint's global viewer) both
+        // need a human-readable name, not just an ID to look up.
+        include: { actor: { select: { name: true, email: true } } },
         orderBy: { createdAt: "desc" },
         skip: (page - 1) * pageSize,
         take: pageSize,

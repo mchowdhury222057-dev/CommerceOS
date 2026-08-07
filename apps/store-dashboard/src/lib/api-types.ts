@@ -108,6 +108,49 @@ export interface OrderStatusHistoryEntry {
   createdAt: string;
 }
 
+export type ProductStatus = "DRAFT" | "ACTIVE" | "ARCHIVED";
+
+export interface Category {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+export interface ProductVariant {
+  id: string;
+  productId: string;
+  sku: string;
+  attributes: Record<string, string>;
+  stock: number;
+  priceOverride: string | null;
+  isActive: boolean;
+}
+
+export interface ProductImage {
+  id: string;
+  productId: string;
+  url: string;
+  altText: string | null;
+  displayOrder: number;
+  createdAt: string;
+}
+
+export interface Product {
+  id: string;
+  storeId: string;
+  name: string;
+  description: string;
+  categoryId: string | null;
+  category: Category | null;
+  basePrice: string;
+  status: ProductStatus;
+  slug: string;
+  lowStockThreshold: number;
+  createdAt: string;
+  variants: ProductVariant[];
+  images: ProductImage[];
+}
+
 export interface OrderDetail {
   id: string;
   storeId: string;

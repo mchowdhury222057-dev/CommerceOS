@@ -32,6 +32,12 @@ export async function getStoreById(storeId: string): Promise<Store> {
   return store;
 }
 
+// Per Part 6/D.2.1 - the Store Management table needs to show which owner a
+// store belongs to (previously invisible - the create-store form captured
+// an owner email/name, but nothing displayed it back afterward). A store
+// has at most one STORE_OWNER user by construction (createStore and the
+// self-signup path each create exactly one), so `take: 1` is safe, not a
+// guess at "the first one."
 export async function listStores(filters: StoreListFilters = {}) {
   const page = filters.page && filters.page > 0 ? filters.page : 1;
   const pageSize = filters.pageSize && filters.pageSize > 0 ? Math.min(filters.pageSize, 100) : 25;
@@ -42,11 +48,22 @@ export async function listStores(filters: StoreListFilters = {}) {
   };
 
   const [stores, total] = await Promise.all([
-    prisma.store.findMany({ where, orderBy: { createdAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize }),
+    prisma.store.findMany({
+      where,
+      include: { users: { where: { role: "STORE_OWNER" }, select: { name: true, email: true }, take: 1 } },
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
     prisma.store.count({ where }),
   ]);
 
-  return { stores, total, page, pageSize };
+  return {
+    stores: stores.map(({ users, ...store }) => ({ ...store, owner: users[0] ?? null })),
+    total,
+    page,
+    pageSize,
+  };
 }
 
 export interface CreateStoreInput {
@@ -104,7 +121,16 @@ export async function createStore(input: CreateStoreInput, actor: AuthUser): Pro
     // that channel exists - never logged or persisted anywhere but the hash.
     return { store, inviteToken: token };
   } catch (error) {
+    // Two unique constraints can fire inside this one transaction - Store.slug
+    // and the owner User.email - and Prisma's P2002 code alone doesn't say
+    // which. error.meta.target does (Prisma includes the actual conflicting
+    // column names), so it must be checked rather than assuming "P2002 during
+    // store creation" always means the slug.
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      const target = (error.meta?.target as string[] | undefined) ?? [];
+      if (target.includes("email")) {
+        throw AppError.conflict(`A user with email "${input.ownerEmail}" already exists`, "DUPLICATE_EMAIL");
+      }
       throw AppError.conflict(`Slug "${input.slug}" is already in use`, "DUPLICATE_SLUG");
     }
     throw error;

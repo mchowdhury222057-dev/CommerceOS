@@ -64,20 +64,30 @@ export default function DashboardPage() {
   }
 
   if (status === "PENDING_SETUP") {
+    const storeName = storeQuery.data?.store.name;
     return (
       <StatusGate
         icon={<Clock size={40} aria-hidden="true" />}
         title="Your store is pending approval"
-        message="A Master Administrator needs to review and approve your store before you can start managing it. You'll be able to access your dashboard as soon as it's approved."
+        message={
+          storeName
+            ? `Thanks for creating ${storeName}! Your store is being reviewed and will be live soon. We'll notify you once it's approved.`
+            : "Thanks for signing up! Your store is being reviewed and will be live soon. We'll notify you once it's approved."
+        }
       />
     );
   }
   if (status === "SUSPENDED") {
+    const reason = storeQuery.data?.store.suspendedReason;
     return (
       <StatusGate
         icon={<ShieldOff size={40} aria-hidden="true" />}
         title="Your store is suspended"
-        message="This store has been suspended by a Master Administrator. Please contact platform support to resolve this before you can continue managing it."
+        message={
+          reason
+            ? `This store has been suspended: ${reason}. Please contact platform support to resolve this before you can continue managing it.`
+            : "This store has been suspended by a Master Administrator. Please contact platform support to resolve this before you can continue managing it."
+        }
       />
     );
   }

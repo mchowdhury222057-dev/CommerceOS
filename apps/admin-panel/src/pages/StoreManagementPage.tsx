@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Paintbrush, UserCog } from "lucide-react";
+import { Activity, Paintbrush, UserCog } from "lucide-react";
 import { Button, StatusBadge } from "@commerceos/ui";
 import type { StatusTone } from "@commerceos/ui";
 import { createStore, listStores, setStoreStatus } from "../api/stores";
@@ -100,6 +100,7 @@ export default function StoreManagementPage() {
           <thead className="bg-surface-sunken text-xs uppercase tracking-wide text-text-secondary">
             <tr>
               <th className="px-4 py-3">Name</th>
+              <th className="px-4 py-3">Owner</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">Created</th>
               <th className="px-4 py-3 text-right">Actions</th>
@@ -108,30 +109,40 @@ export default function StoreManagementPage() {
           <tbody>
             {isLoading && (
               <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-text-secondary">
+                <td colSpan={5} className="px-4 py-6 text-center text-text-secondary">
                   Loading stores…
                 </td>
               </tr>
             )}
             {isError && (
               <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-status-danger">
+                <td colSpan={5} className="px-4 py-6 text-center text-status-danger">
                   Could not load stores. Retry shortly.
                 </td>
               </tr>
             )}
             {!isLoading && !isError && data?.stores.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-text-secondary">
+                <td colSpan={5} className="px-4 py-6 text-center text-text-secondary">
                   No stores yet. Create your first store to get started.
                 </td>
               </tr>
             )}
             {data?.stores.map((store) => (
-              <tr key={store.id} className="border-t border-border-default">
+              <tr key={store.id} className="border-t border-border-default transition-colors hover:bg-surface-sunken/60">
                 <td className="px-4 py-3 font-medium text-text-primary">
                   {store.name}
                   <div className="text-xs font-normal text-text-secondary">{store.slug}</div>
+                </td>
+                <td className="px-4 py-3">
+                  {store.owner ? (
+                    <>
+                      <div className="text-text-primary">{store.owner.name}</div>
+                      <div className="text-xs text-text-secondary">{store.owner.email}</div>
+                    </>
+                  ) : (
+                    <span className="text-text-secondary">No owner</span>
+                  )}
                 </td>
                 <td className="px-4 py-3">
                   <StatusBadge tone={STATUS_TONE[store.status]} label={store.status.replace("_", " ")} />
@@ -139,6 +150,15 @@ export default function StoreManagementPage() {
                 <td className="px-4 py-3 text-text-secondary">{new Date(store.createdAt).toLocaleDateString()}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      aria-label={`View activity for ${store.name}`}
+                      title="View Store Activity"
+                      onClick={() => navigate(`/stores/${store.id}/activity`)}
+                      className="rounded-md p-2 text-text-secondary hover:bg-surface-sunken hover:text-primary"
+                    >
+                      <Activity size={16} aria-hidden="true" />
+                    </button>
                     <button
                       type="button"
                       aria-label={`Edit theme for ${store.name}`}
@@ -202,7 +222,7 @@ function CreateStoreForm({ onCreated }: { onCreated: () => void }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mb-6 rounded-lg border border-border-default bg-surface-card p-5">
+    <form onSubmit={handleSubmit} className="animate-panel-in mb-6 rounded-lg border border-border-default bg-surface-card p-5">
       <h2 className="mb-4 text-sm font-semibold text-text-primary">Create a new store</h2>
       <div className="grid grid-cols-2 gap-4">
         <Field label="Store name" value={name} onChange={setName} required />

@@ -1,14 +1,22 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
 import {
+  adminSignupSchema,
   loginSchema,
   passwordResetConfirmSchema,
   passwordResetRequestSchema,
   redeemInviteSchema,
+  signupSchema,
+  type SignupInput,
 } from "@commerceos/types";
 import { AppError } from "../lib/errors.js";
 import { asyncHandler } from "../middleware/error-handler.js";
-import { inviteRedeemRateLimiter, loginRateLimiter, passwordResetRateLimiter } from "../middleware/rate-limit.js";
+import {
+  inviteRedeemRateLimiter,
+  loginRateLimiter,
+  passwordResetRateLimiter,
+  signupRateLimiter,
+} from "../middleware/rate-limit.js";
 import { validateBody } from "../middleware/validate.js";
 import {
   confirmPasswordReset,
@@ -17,6 +25,9 @@ import {
   redeemStaffInvite,
   refreshAccessToken,
   requestPasswordReset,
+  signup,
+  signupMasterAdmin,
+  type AdminSignupInput,
   type AuthResult,
 } from "../services/auth.service.js";
 
@@ -67,6 +78,34 @@ authRouter.post(
   }),
 );
 
+// Per Part 6.1 - public, no auth: this is how a Store Owner account first
+// comes into existence via self-signup, alongside (not replacing) the
+// Master Admin's "+ Create Store" path (admin.routes.ts).
+authRouter.post(
+  "/signup",
+  signupRateLimiter,
+  validateBody(signupSchema),
+  asyncHandler(async (req, res) => {
+    const body = req.body as SignupInput;
+    const result = await signup(body);
+    respondWithSession(res, result, 201);
+  }),
+);
+
+// Per Part 4/20.1 - a second Master Administrator account creation path,
+// public but gated by a shared secret (ADMIN_SETUP_KEY) rather than the
+// Store Owner path's open signup, since this role is platform-wide. Not
+// rate-limited yet (see auth.service.ts's TODO on signupMasterAdmin).
+authRouter.post(
+  "/admin-signup",
+  validateBody(adminSignupSchema),
+  asyncHandler(async (req, res) => {
+    const body = req.body as AdminSignupInput;
+    const result = await signupMasterAdmin(body);
+    respondWithSession(res, result, 201);
+  }),
+);
+
 authRouter.post(
   "/invite/redeem",
   inviteRedeemRateLimiter,
@@ -103,9 +142,18 @@ authRouter.post(
   validateBody(passwordResetRequestSchema),
   asyncHandler(async (req, res) => {
     const { email } = req.body as { email: string };
-    await requestPasswordReset(email);
-    // Per Part D.1.5 - identical response whether or not the account exists.
-    res.status(200).json({ message: "If an account exists for this email, a reset link has been sent." });
+    const resetLink = await requestPasswordReset(email);
+    // Per Part D.1.5 - the `message` field is identical whether or not the
+    // account exists, so a client can never learn that from the response
+    // alone. `resetLink` breaks that guarantee (it's only present when the
+    // account exists) - that's DEV ONLY, standing in for the real email that
+    // would otherwise carry the link out-of-band. Once real email sending
+    // exists (see lib/mailer.ts's sendPasswordResetLink), delete this field
+    // entirely rather than shipping it to production.
+    res.status(200).json({
+      message: "If an account exists for this email, a reset link has been generated.",
+      ...(resetLink ? { resetLink } : {}),
+    });
   }),
 );
 

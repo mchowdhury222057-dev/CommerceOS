@@ -15,6 +15,7 @@ export interface AdminStore {
   planTier: string | null;
   createdAt: string;
   updatedAt: string;
+  owner: { name: string; email: string } | null;
 }
 
 export type StorefrontVersionStatus = "DRAFT" | "PUBLISHED" | "OBSOLETE";
@@ -65,6 +66,7 @@ export interface AuditLogEntry {
   id: string;
   actorId: string;
   actorRole: string;
+  actor: { name: string; email: string };
   action: string;
   targetStoreId: string | null;
   targetResource: string | null;

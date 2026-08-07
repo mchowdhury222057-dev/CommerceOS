@@ -16,3 +16,17 @@
 body {
   @apply bg-surface-page text-text-primary font-sans;
 }
+
+/* Same treatment as the Admin Panel's admin-content-bg (Part 22) - subtle
+   visual interest for the main content area's empty page space only;
+   every card/table/panel stays on a solid white surface. Deliberately no
+   blur/glass. Applied once in Layout.tsx so it's consistent across every
+   Store Dashboard page automatically. */
+.dashboard-content-bg {
+  background-color: var(--surface-page);
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(79, 70, 229, 0.07) 1px, transparent 0),
+    linear-gradient(180deg, rgba(79, 70, 229, 0.04) 0%, rgba(79, 70, 229, 0) 420px);
+  background-size: 24px 24px, 100% 100%;
+  background-repeat: repeat, no-repeat;
+}

@@ -7,6 +7,7 @@ import { logout } from "../api/auth";
 const NAV_ITEMS = [
   { to: "/", label: "Dashboard" },
   { to: "/orders", label: "Orders" },
+  { to: "/products", label: "Products" },
 ];
 
 // White sidebar (not the admin panel's dark navy) per SRS Part A.1.4 -
@@ -52,7 +53,7 @@ export function Layout() {
           </button>
         </div>
       </aside>
-      <main className="flex-1 p-8">
+      <main className="dashboard-content-bg flex-1 overflow-y-auto p-8">
         <Outlet />
       </main>
     </div>

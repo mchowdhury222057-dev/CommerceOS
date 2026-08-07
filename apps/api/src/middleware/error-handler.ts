@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
+import { MulterError } from "multer";
 import { AppError } from "../lib/errors.js";
 import { logger } from "../lib/logger.js";
 
@@ -12,6 +13,16 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
   if (err instanceof AppError) {
     res.status(err.status).json({
       error: { code: err.code, message: err.message, details: err.details },
+    });
+    return;
+  }
+
+  // multer throws its own error class (e.g. LIMIT_FILE_SIZE) rather than
+  // an AppError - translate it into the same response shape instead of
+  // letting it fall through to a generic 500.
+  if (err instanceof MulterError) {
+    res.status(400).json({
+      error: { code: `UPLOAD_${err.code}`, message: err.message },
     });
     return;
   }
