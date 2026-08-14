@@ -57,7 +57,7 @@ export default function OrderLookupPage() {
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
           placeholder="01XXXXXXXXX"
-          className="flex-1 rounded-md border border-border-default px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+          className="flex-1 rounded-md border border-border-default bg-surface-card px-3 py-2 text-sm text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
         />
         <Button type="submit" variant="primary" loading={mutation.isPending}>
           Search

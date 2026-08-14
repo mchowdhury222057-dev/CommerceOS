@@ -176,7 +176,7 @@ export default function ProductDetailPage() {
               <select
                 value={quantity}
                 onChange={(e) => setQuantity(Number(e.target.value))}
-                className="rounded-md border border-border-default px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                className="rounded-md border border-border-default bg-surface-card px-3 py-2 text-sm text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
               >
                 {Array.from({ length: maxQuantity }, (_, i) => i + 1).map((n) => (
                   <option key={n} value={n}>

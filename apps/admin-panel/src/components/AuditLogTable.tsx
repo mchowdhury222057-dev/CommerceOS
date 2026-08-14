@@ -1,4 +1,9 @@
+import type { ReactNode } from "react";
 import { ShieldAlert } from "lucide-react";
+import { Badge } from "./ui/Badge";
+import type { BadgeTone } from "./ui/Badge";
+import { Table, TBody, TD, TH, THead, TR, TableState } from "./ui/Table";
+import { TableRowSkeleton } from "./ui/Skeleton";
 import type { AuditLogEntry } from "../lib/api-types";
 
 const ROLE_LABEL: Record<string, string> = {
@@ -60,77 +65,75 @@ function describeEntry(entry: AuditLogEntry): string {
   }
 }
 
+// A category badge per action - purely a display grouping (prefix match
+// on the same real `action` string already stored), not a new field.
+function categoryOf(action: string): { label: string; tone: BadgeTone } {
+  if (action.startsWith("Product")) return { label: "Product", tone: "info" };
+  if (action.startsWith("Order")) return { label: "Order", tone: "primary" };
+  if (action.startsWith("StoreTheme")) return { label: "Theme", tone: "caution" };
+  if (action.startsWith("Store")) return { label: "Store", tone: "success" };
+  if (action.startsWith("Impersonation")) return { label: "Impersonation", tone: "danger" };
+  if (action.startsWith("Staff")) return { label: "Staff", tone: "neutral" };
+  return { label: "Other", tone: "neutral" };
+}
+
 export function AuditLogTable({
   entries,
   isLoading,
   isError,
+  footer,
 }: {
   entries: AuditLogEntry[] | undefined;
   isLoading: boolean;
   isError: boolean;
+  footer?: ReactNode;
 }) {
   return (
-    <div className="overflow-hidden rounded-lg border border-border-default bg-surface-card">
-      <table className="w-full text-left text-sm">
-        <thead className="bg-surface-sunken text-xs uppercase tracking-wide text-text-secondary">
-          <tr>
-            <th className="px-4 py-3">When</th>
-            <th className="px-4 py-3">Who</th>
-            <th className="px-4 py-3">What</th>
-            <th className="px-4 py-3">Target</th>
-          </tr>
-        </thead>
-        <tbody>
-          {isLoading && (
-            <tr>
-              <td colSpan={4} className="px-4 py-6 text-center text-text-secondary">
-                Loading…
-              </td>
-            </tr>
-          )}
-          {isError && (
-            <tr>
-              <td colSpan={4} className="px-4 py-6 text-center text-status-danger">
-                Could not load activity.
-              </td>
-            </tr>
-          )}
-          {!isLoading && !isError && entries?.length === 0 && (
-            <tr>
-              <td colSpan={4} className="px-4 py-6 text-center text-text-secondary">
-                No entries match your filters.
-              </td>
-            </tr>
-          )}
-          {entries?.map((entry) => {
-            const isImpersonated = Boolean(entry.impersonationSessionId);
-            return (
-              <tr
-                key={entry.id}
-                className={`border-t border-border-default transition-colors hover:bg-surface-sunken/60 ${isImpersonated ? "border-l-4 border-l-amber-impersonation bg-amber-impersonation/5" : ""}`}
-              >
-                <td className="whitespace-nowrap px-4 py-3 text-text-secondary">{new Date(entry.createdAt).toLocaleString()}</td>
-                <td className="px-4 py-3 text-text-secondary">
-                  <div className="font-medium text-text-primary">{entry.actor.name}</div>
-                  <div className="text-xs">{ROLE_LABEL[entry.actorRole] ?? entry.actorRole}</div>
-                </td>
-                <td className="px-4 py-3 font-medium text-text-primary">
-                  <div className="flex items-center gap-1.5">
-                    {isImpersonated && <ShieldAlert size={14} className="shrink-0 text-amber-impersonation" aria-hidden="true" />}
-                    {describeEntry(entry)}
-                  </div>
-                  {isImpersonated && (
-                    <span className="text-xs font-normal text-amber-impersonation">
-                      during impersonation session {entry.impersonationSessionId}
-                    </span>
-                  )}
-                </td>
-                <td className="px-4 py-3 text-text-secondary">{entry.targetResource ?? entry.targetStoreId ?? "—"}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+    <Table footer={footer}>
+      <THead>
+        <tr>
+          <TH>When</TH>
+          <TH>Who</TH>
+          <TH>Type</TH>
+          <TH>What</TH>
+          <TH>Target</TH>
+        </tr>
+      </THead>
+      <TBody>
+        {isLoading && Array.from({ length: 6 }, (_, i) => <TableRowSkeleton key={i} columns={5} />)}
+        {isError && (
+          <TableState colSpan={5} tone="danger">
+            Could not load activity.
+          </TableState>
+        )}
+        {!isLoading && !isError && entries?.length === 0 && <TableState colSpan={5}>No entries match your filters.</TableState>}
+        {entries?.map((entry) => {
+          const isImpersonated = Boolean(entry.impersonationSessionId);
+          const category = categoryOf(entry.action);
+          return (
+            <TR key={entry.id} className={isImpersonated ? "border-l-4 border-l-amber-impersonation bg-amber-impersonation/5" : undefined}>
+              <TD className="whitespace-nowrap text-text-secondary">{new Date(entry.createdAt).toLocaleString()}</TD>
+              <TD className="text-text-secondary">
+                <div className="font-medium text-text-primary">{entry.actor.name}</div>
+                <div className="text-xs">{ROLE_LABEL[entry.actorRole] ?? entry.actorRole}</div>
+              </TD>
+              <TD>
+                <Badge tone={category.tone} size="sm">
+                  {category.label}
+                </Badge>
+              </TD>
+              <TD className="font-medium">
+                <div className="flex items-center gap-1.5">
+                  {isImpersonated && <ShieldAlert size={14} className="shrink-0 text-amber-impersonation" aria-hidden="true" />}
+                  {describeEntry(entry)}
+                </div>
+                {isImpersonated && <span className="text-xs font-normal text-amber-impersonation">during impersonation session {entry.impersonationSessionId}</span>}
+              </TD>
+              <TD className="text-text-secondary">{entry.targetResource ?? entry.targetStoreId ?? "—"}</TD>
+            </TR>
+          );
+        })}
+      </TBody>
+    </Table>
   );
 }

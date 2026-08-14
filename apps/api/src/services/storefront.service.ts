@@ -8,7 +8,7 @@ import { AppError } from "../lib/errors.js";
 // the public storefront never reveals a store's internal lifecycle state.
 export async function resolveActiveStore(slug: string) {
   const store = await prisma.store.findUnique({ where: { slug } });
-  if (!store || store.status !== "ACTIVE") {
+  if (!store || store.status !== "APPROVED") {
     throw AppError.notFound(`Store "${slug}" not found`);
   }
   return store;

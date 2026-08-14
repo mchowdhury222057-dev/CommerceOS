@@ -8,10 +8,15 @@ export interface ListProductsResult {
   pageSize: number;
 }
 
-export function listProducts(storeId: string, filters: { status?: ProductStatus[]; search?: string } = {}): Promise<ListProductsResult> {
+export function listProducts(
+  storeId: string,
+  filters: { status?: ProductStatus[]; search?: string; page?: number; pageSize?: number } = {},
+): Promise<ListProductsResult> {
   const query = new URLSearchParams();
   if (filters.status?.length) query.set("status", filters.status.join(","));
   if (filters.search) query.set("search", filters.search);
+  if (filters.page) query.set("page", String(filters.page));
+  if (filters.pageSize) query.set("pageSize", String(filters.pageSize));
   const qs = query.toString();
   return api.get<ListProductsResult>(`/api/store/${storeId}/products${qs ? `?${qs}` : ""}`);
 }
@@ -38,6 +43,7 @@ export interface CreateProductInput {
   basePrice: number;
   status?: ProductStatus;
   slug: string;
+  lowStockThreshold?: number;
   variants: VariantInput[];
 }
 
@@ -52,6 +58,7 @@ export interface UpdateProductInput {
   basePrice?: number;
   status?: ProductStatus;
   slug?: string;
+  lowStockThreshold?: number;
 }
 
 export function updateProduct(storeId: string, productId: string, input: UpdateProductInput): Promise<{ product: Product }> {

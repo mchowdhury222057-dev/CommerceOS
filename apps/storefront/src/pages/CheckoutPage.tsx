@@ -78,7 +78,7 @@ export default function CheckoutPage() {
                 value={deliveryAddress}
                 onChange={(e) => setDeliveryAddress(e.target.value)}
                 rows={3}
-                className="w-full rounded-lg border border-border-default px-3.5 py-2.5 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                className="w-full rounded-lg border border-border-default bg-surface-card px-3.5 py-2.5 text-sm text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
               />
             </label>
             <label className="block text-sm">
@@ -176,7 +176,7 @@ function Field(props: {
         required={props.required}
         value={props.value}
         onChange={(e) => props.onChange(e.target.value)}
-        className="w-full rounded-lg border border-border-default px-3.5 py-2.5 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+        className="w-full rounded-lg border border-border-default bg-surface-card px-3.5 py-2.5 text-sm text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
       />
     </label>
   );

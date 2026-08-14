@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { requireAuth, requireStoreAccess } from "../middleware/auth.js";
+import { requireApprovedStore, requireAuth, requireStoreAccess } from "../middleware/auth.js";
 import { asyncHandler } from "../middleware/error-handler.js";
 import { getStoreById } from "../services/store.service.js";
 import { getStoreDashboardSummary } from "../services/store-dashboard.service.js";
@@ -9,7 +9,12 @@ import { productsRouter } from "./products.routes.js";
 import { staffRouter } from "./staff.routes.js";
 
 // Per SRS Part 21 - /api/store/:storeId/* endpoint group aggregator. Every
-// sub-router mounted here inherits requireAuth + requireStoreAccess.
+// sub-router mounted here inherits requireAuth + requireStoreAccess. The
+// bare GET /:storeId endpoint deliberately does NOT also require
+// requireApprovedStore - it's the one endpoint a PENDING/REJECTED/
+// SUSPENDED owner's StoreAccessGate must still be able to call to know
+// which status screen to show; everything else (dashboard, orders,
+// products, customers, staff) is gated on APPROVED per Section 24.
 export const storeRouter = Router({ mergeParams: true });
 
 // Mounted at "/:storeId" (not a bare `.use(mw)`) so Express resolves the
@@ -30,13 +35,14 @@ storeRouter.get(
 // Per Part 18.1 - the Store Owner's landing page KPI aggregates.
 storeRouter.get(
   "/:storeId/dashboard",
+  requireApprovedStore,
   asyncHandler(async (req, res) => {
     const summary = await getStoreDashboardSummary(req.params.storeId);
     res.json(summary);
   }),
 );
 
-storeRouter.use("/:storeId/orders", ordersRouter);
-storeRouter.use("/:storeId/products", productsRouter);
-storeRouter.use("/:storeId/customers", customersRouter);
-storeRouter.use("/:storeId/staff", staffRouter);
+storeRouter.use("/:storeId/orders", requireApprovedStore, ordersRouter);
+storeRouter.use("/:storeId/products", requireApprovedStore, productsRouter);
+storeRouter.use("/:storeId/customers", requireApprovedStore, customersRouter);
+storeRouter.use("/:storeId/staff", requireApprovedStore, staffRouter);

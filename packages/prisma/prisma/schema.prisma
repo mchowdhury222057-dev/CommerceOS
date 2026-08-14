@@ -32,11 +32,34 @@ enum UserStatus {
   ACTIVE
 }
 
+// Renamed in place for the merchant verification/approval milestone:
+// PENDING_SETUP -> PENDING, ACTIVE -> APPROVED, REJECTED added. SUSPENDED
+// and ARCHIVED are unchanged - ARCHIVED specifically stays even though
+// it's outside this milestone's literal 4-value list, since it's already
+// a reserved-for-later value (no code path sets it today; it's earmarked
+// for a future "Archive instead of hard-delete" store-lifecycle action)
+// and dropping it would be an unrelated, unrequested schema change.
 enum StoreStatus {
-  PENDING_SETUP
-  ACTIVE
+  PENDING
+  APPROVED
   SUSPENDED
+  REJECTED
   ARCHIVED
+}
+
+// Separate from StoreStatus per this milestone's explicit design - a
+// store's lifecycle (can it be accessed?) and its merchant-verification
+// progress (has the paperwork been reviewed?) are deliberately distinct
+// concepts that happen to move in lockstep for the common case, but
+// don't have to (e.g. Section 20/21's Reject/Suspend still record a
+// VerificationStatus alongside the StoreStatus change).
+enum VerificationStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  SUBMITTED
+  UNDER_REVIEW
+  VERIFIED
+  REJECTED
 }
 
 enum StorefrontVersionStatus {
@@ -87,14 +110,28 @@ model Store {
   id        String      @id @default(cuid())
   name      String
   slug      String      @unique
-  status    StoreStatus @default(PENDING_SETUP)
+  status    StoreStatus @default(PENDING)
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
 
   // Per Part D.2.2 - suspension always carries a reason, shown to both the
   // Store Owner and the audit trail; never an unexplained action.
-  suspendedAt     DateTime?
-  suspendedReason String?
+  suspendedAt       DateTime?
+  suspendedReason   String?
+  suspendedByUserId String?
+  suspendedByUser   User?     @relation("StoreSuspendedBy", fields: [suspendedByUserId], references: [id])
+
+  // Merchant verification/approval milestone - the one-time go-live gate
+  // (approvedAt/approvedByUserId) is distinct from suspension/reactivation
+  // even though both can land on APPROVED, so the audit trail can always
+  // tell "newly approved" from "reactivated after suspension" apart.
+  approvedAt       DateTime?
+  approvedByUserId String?
+  approvedByUser   User?     @relation("StoreApprovedBy", fields: [approvedByUserId], references: [id])
+  rejectedAt       DateTime?
+  rejectedReason   String?
+  rejectedByUserId String?
+  rejectedByUser   User?     @relation("StoreRejectedBy", fields: [rejectedByUserId], references: [id])
 
   // Reserved, unused in V1 (Part 25/Part N.1) - no billing/reseller model
   // exists yet; these fields exist only so V5 white-label work needs no
@@ -108,6 +145,7 @@ model Store {
   orders         Order[]
   customers      Customer[]
   storefront     Storefront?
+  verification   Verification?
   auditLogs      AuditLog[]             @relation("AuditLogTargetStore")
   impersonations ImpersonationSession[]
   deliveryAreas  DeliveryArea[]
@@ -123,6 +161,11 @@ model User {
   id           String     @id @default(cuid())
   email        String     @unique
   name         String
+  // Collected at Store Owner self-signup (merchant verification milestone,
+  // Section 3) alongside name/email - nullable since staff created via
+  // invite (staff.routes.ts) or the Master Admin's own account never
+  // collect this.
+  phone        String?
   passwordHash String
   role         UserRole
   status       UserStatus @default(ACTIVE)
@@ -142,6 +185,11 @@ model User {
   auditLogEntries           AuditLog[]             @relation("AuditLogActor")
   impersonationsAsAdmin     ImpersonationSession[] @relation("ImpersonationAdmin")
   passwordResetTokens       PasswordResetToken[]
+  approvedStores            Store[]                @relation("StoreApprovedBy")
+  rejectedStores            Store[]                @relation("StoreRejectedBy")
+  suspendedStores           Store[]                @relation("StoreSuspendedBy")
+  verificationsAsOwner      Verification[]         @relation("VerificationOwner")
+  verificationsReviewed     Verification[]         @relation("VerificationReviewedBy")
 
   @@index([storeId])
 }
@@ -163,6 +211,65 @@ model PasswordResetToken {
 
   @@index([userId])
   @@index([token])
+}
+
+// Merchant verification/approval milestone. One record per store (created
+// alongside it at self-signup), tracking the review application
+// separately from Store.status itself. tokenHash (not the raw token) is
+// persisted, matching the invite-token pattern already used elsewhere in
+// this schema (User.inviteTokenHash) - unlike PasswordResetToken, which
+// predates that convention and stores the raw value; not touched here,
+// out of scope for this milestone.
+model Verification {
+  id      String @id @default(cuid())
+  storeId String @unique
+  store   Store  @relation(fields: [storeId], references: [id])
+  ownerId String
+  owner   User   @relation("VerificationOwner", fields: [ownerId], references: [id])
+
+  status VerificationStatus @default(NOT_STARTED)
+
+  // Secure, one-time verification link (Section 7) - single active token
+  // per store; re-hitting the link after tokenUsedAt is set (on
+  // successful submission) or past tokenExpiresAt is rejected.
+  tokenHash      String?   @unique
+  tokenExpiresAt DateTime?
+  tokenUsedAt    DateTime?
+
+  // Owner info, confirmed/corrected at verification time (may differ
+  // from the live User.name/phone if the owner fixes a typo here).
+  fullName String?
+  phone    String?
+
+  // Business info
+  businessType    String?
+  businessAddress String?
+  description     String?
+
+  // Identity verification - NID number plus a Cloudinary public_id for
+  // the uploaded document, delivered only via signed/authenticated URLs
+  // generated on demand server-side (never a public delivery URL, unlike
+  // product images - see lib/cloudinary.ts's uploadPrivateDocumentBuffer).
+  nidNumber     String?
+  nidDocumentId String?
+
+  // Business documents - trade license is optional ("if applicable"),
+  // plus one general supporting-document slot.
+  tradeLicenseNumber     String?
+  tradeLicenseDocumentId String?
+  supportingDocumentId   String?
+
+  submittedAt      DateTime?
+  reviewedAt       DateTime?
+  reviewedByUserId String?
+  reviewedByUser   User?     @relation("VerificationReviewedBy", fields: [reviewedByUserId], references: [id])
+  rejectionReason  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([tokenHash])
 }
 
 model Storefront {

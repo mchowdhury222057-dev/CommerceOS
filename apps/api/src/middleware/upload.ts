@@ -17,3 +17,26 @@ export const uploadImage = multer({
     cb(null, true);
   },
 }).single("image");
+
+// Verification documents (NID, trade license, supporting docs) - image
+// scans or PDFs, same memory-storage rationale as uploadImage. The
+// verification form submits up to three named files in ONE request
+// (Section 10's single-page multi-step wizard submits everything at
+// once), hence `.fields()` instead of `.single()` - each field is
+// individually optional at the multer level; verification.service.ts's
+// submitVerification() is what actually requires the NID document.
+export const uploadVerificationDocuments = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_FILE_SIZE_BYTES, files: 3 },
+  fileFilter: (_req, file, cb) => {
+    if (!file.mimetype.startsWith("image/") && file.mimetype !== "application/pdf") {
+      cb(new AppError(400, "INVALID_FILE_TYPE", "Only image or PDF files are accepted"));
+      return;
+    }
+    cb(null, true);
+  },
+}).fields([
+  { name: "nidDocument", maxCount: 1 },
+  { name: "tradeLicenseDocument", maxCount: 1 },
+  { name: "supportingDocument", maxCount: 1 },
+]);

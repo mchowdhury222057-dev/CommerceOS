@@ -26,8 +26,8 @@ export function StoreLayout() {
   if (storeQuery.isError || !storeQuery.data) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center text-center">
-        <h1 className="mb-2 text-lg font-semibold text-text-primary">Store not found</h1>
-        <p className="text-sm text-text-secondary">This store doesn't exist or isn't available right now.</p>
+        <h1 className="mb-2 text-lg font-semibold text-text-primary">Store Unavailable</h1>
+        <p className="text-sm text-text-secondary">This store is currently unavailable.</p>
       </div>
     );
   }

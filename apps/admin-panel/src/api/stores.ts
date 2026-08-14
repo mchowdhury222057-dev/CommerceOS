@@ -8,10 +8,12 @@ export interface ListStoresResult {
   pageSize: number;
 }
 
-export function listStores(params: { search?: string; status?: StoreStatus[] } = {}): Promise<ListStoresResult> {
+export function listStores(params: { search?: string; status?: StoreStatus[]; page?: number; pageSize?: number } = {}): Promise<ListStoresResult> {
   const query = new URLSearchParams();
   if (params.search) query.set("search", params.search);
   if (params.status?.length) query.set("status", params.status.join(","));
+  if (params.page) query.set("page", String(params.page));
+  if (params.pageSize) query.set("pageSize", String(params.pageSize));
   const qs = query.toString();
   return api.get<ListStoresResult>(`/api/admin/stores${qs ? `?${qs}` : ""}`);
 }
@@ -34,7 +36,7 @@ export function createStore(input: CreateStoreInput): Promise<CreateStoreResult>
 
 export function setStoreStatus(
   storeId: string,
-  input: { status: "ACTIVE" | "SUSPENDED"; reason?: string },
+  input: { status: "APPROVED" | "SUSPENDED" | "REJECTED"; reason?: string },
 ): Promise<{ store: AdminStore }> {
   return api.patch<{ store: AdminStore }>(`/api/admin/stores/${storeId}/status`, input);
 }

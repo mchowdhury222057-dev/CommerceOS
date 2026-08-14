@@ -12,8 +12,11 @@ vi.mock("../services/impersonation.service.js", () => ({
   isImpersonationSessionActive: vi.fn(),
 }));
 
+const mockPrisma = { store: { findUnique: vi.fn() } };
+vi.mock("../lib/prisma.js", () => ({ prisma: mockPrisma }));
+
 const { isImpersonationSessionActive } = await import("../services/impersonation.service.js");
-const { requireMasterAdmin, requireStoreAccess, requireRole } = await import("./auth.js");
+const { requireApprovedStore, requireMasterAdmin, requireStoreAccess, requireRole } = await import("./auth.js");
 
 function makeReq(user: RequestUser | undefined, storeId?: string): Request {
   return { user, params: { storeId } } as unknown as Request;
@@ -100,6 +103,53 @@ describe("requireStoreAccess", () => {
     const { next, result } = makeNext();
     await requireStoreAccess(req, {} as Response, next);
     expect(result()).toBeUndefined();
+  });
+});
+
+// Per Section 24 - the backend gate that keeps a PENDING/SUSPENDED/
+// REJECTED Store Owner out of every real dashboard API, independent of
+// whatever the frontend does. A fresh per-request DB read (never cached in
+// the JWT), with MASTER_ADMIN exempted so impersonation-based review of a
+// not-yet-approved store still works.
+describe("requireApprovedStore", () => {
+  beforeEach(() => {
+    mockPrisma.store.findUnique.mockReset();
+  });
+
+  it.each(["PENDING", "SUSPENDED", "REJECTED"] as const)("rejects a %s store with the matching 403 code", async (status) => {
+    mockPrisma.store.findUnique.mockResolvedValue({ status });
+    const req = makeReq(storeOwner, "store-a");
+    const { next, result } = makeNext();
+    await requireApprovedStore(req, {} as Response, next);
+    const err = result() as AppError;
+    expect(err).toBeInstanceOf(AppError);
+    expect(err.status).toBe(403);
+    expect(err.code).toBe(`STORE_${status}`);
+  });
+
+  it("allows an APPROVED store through", async () => {
+    mockPrisma.store.findUnique.mockResolvedValue({ status: "APPROVED" });
+    const req = makeReq(storeOwner, "store-a");
+    const { next, result } = makeNext();
+    await requireApprovedStore(req, {} as Response, next);
+    expect(result()).toBeUndefined();
+  });
+
+  it("exempts MASTER_ADMIN even when the target store is not APPROVED (impersonation-based review still needs access)", async () => {
+    const req = makeReq(masterAdmin, "store-a");
+    const { next, result } = makeNext();
+    await requireApprovedStore(req, {} as Response, next);
+    expect(result()).toBeUndefined();
+    expect(mockPrisma.store.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("throws 404 for a store that doesn't exist", async () => {
+    mockPrisma.store.findUnique.mockResolvedValue(null);
+    const req = makeReq(storeOwner, "store-a");
+    const { next, result } = makeNext();
+    await requireApprovedStore(req, {} as Response, next);
+    const err = result() as AppError;
+    expect(err.status).toBe(404);
   });
 });
 

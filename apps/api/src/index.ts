@@ -7,6 +7,7 @@ import { authRouter } from "./routes/auth.routes.js";
 import { storefrontRouter } from "./routes/storefront.routes.js";
 import { storeRouter } from "./routes/store.routes.js";
 import { adminRouter } from "./routes/admin.routes.js";
+import { verificationRouter } from "./routes/verification.routes.js";
 import { errorHandler } from "./middleware/error-handler.js";
 import { requestLogger } from "./middleware/request-logger.js";
 import { logger } from "./lib/logger.js";
@@ -37,6 +38,7 @@ app.use("/api/auth", authRouter);
 app.use("/api/storefront", storefrontRouter);
 app.use("/api/store", storeRouter);
 app.use("/api/admin", adminRouter);
+app.use("/api/verification", verificationRouter);
 
 // Must be registered after every route (Express convention for error-handling
 // middleware) - see Part O.8's single-shape error contract.

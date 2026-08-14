@@ -52,7 +52,7 @@ export default function AdminSignupPage() {
           autoComplete="name"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="mb-4 w-full rounded-md border border-border-default px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+          className="mb-4 w-full rounded-md border border-border-default bg-surface-card px-3 py-2 text-sm text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
         />
 
         <label htmlFor="email" className="mb-1 block text-sm font-medium text-text-primary">
@@ -65,7 +65,7 @@ export default function AdminSignupPage() {
           autoComplete="username"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="mb-4 w-full rounded-md border border-border-default px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+          className="mb-4 w-full rounded-md border border-border-default bg-surface-card px-3 py-2 text-sm text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
         />
 
         <label htmlFor="password" className="mb-1 block text-sm font-medium text-text-primary">
@@ -78,7 +78,7 @@ export default function AdminSignupPage() {
           autoComplete="new-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="mb-4 w-full rounded-md border border-border-default px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+          className="mb-4 w-full rounded-md border border-border-default bg-surface-card px-3 py-2 text-sm text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
         />
 
         <div className="mb-4 rounded-md border border-dashed border-amber-400 bg-amber-50 p-3">
@@ -93,7 +93,7 @@ export default function AdminSignupPage() {
             required
             value={setupKey}
             onChange={(e) => setSetupKey(e.target.value)}
-            className="w-full rounded-md border border-amber-300 bg-white px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+            className="w-full rounded-md border border-amber-300 bg-white px-3 py-2 text-sm text-amber-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
           />
         </div>
 

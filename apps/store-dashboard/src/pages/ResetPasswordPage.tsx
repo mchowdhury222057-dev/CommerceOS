@@ -5,6 +5,8 @@ import { CheckCircle2, KeyRound, ShieldAlert } from "lucide-react";
 import { Button } from "@commerceos/ui";
 import { confirmPasswordReset } from "../api/auth";
 import { ApiError } from "../lib/api-client";
+import { AuthLayout } from "../components/AuthLayout";
+import { Input } from "../components/ui/Input";
 
 const PASSWORD_MIN_LENGTH = 8;
 
@@ -54,82 +56,68 @@ export default function ResetPasswordPage() {
 
   if (success) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-surface-page px-4">
-        <div className="w-full max-w-sm rounded-lg bg-surface-card p-8 text-center shadow-lg">
+      <AuthLayout>
+        <div className="rounded-xl border border-border-default bg-surface-card p-8 text-center shadow-card">
           <CheckCircle2 size={40} className="mx-auto mb-3 text-status-success" aria-hidden="true" />
-          <h1 className="mb-2 text-lg font-semibold text-text-primary">Password updated</h1>
+          <h1 className="mb-2 text-xl font-bold tracking-tight text-text-primary">Password updated</h1>
           <p className="text-sm text-text-secondary">Redirecting you to sign in…</p>
         </div>
-      </div>
+      </AuthLayout>
     );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-surface-page px-4">
-      <form onSubmit={handleSubmit} className="w-full max-w-sm rounded-lg bg-surface-card p-8 shadow-lg">
-        <KeyRound size={28} className="mb-3 text-primary" aria-hidden="true" />
-        <h1 className="mb-1 text-lg font-semibold text-text-primary">Set a new password</h1>
+    <AuthLayout>
+      <form onSubmit={handleSubmit} className="rounded-xl border border-border-default bg-surface-card p-8 shadow-card">
+        <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <KeyRound size={18} aria-hidden="true" />
+        </span>
+        <h1 className="mb-1 text-xl font-bold tracking-tight text-text-primary">Set a new password</h1>
         <p className="mb-6 text-sm text-text-secondary">Choose a new password for your account.</p>
 
-        <label htmlFor="password" className="mb-1 block text-sm font-medium text-text-primary">
-          New password
-        </label>
-        <input
-          id="password"
-          type="password"
-          required
-          autoComplete="new-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="mb-4 w-full rounded-md border border-border-default px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
-        />
-
-        <label htmlFor="confirmPassword" className="mb-1 block text-sm font-medium text-text-primary">
-          Confirm new password
-        </label>
-        <input
-          id="confirmPassword"
-          type="password"
-          required
-          autoComplete="new-password"
-          value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
-          className="mb-4 w-full rounded-md border border-border-default px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
-        />
+        <div className="space-y-4">
+          <Input label="New password" type="password" required autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <Input
+            label="Confirm new password"
+            type="password"
+            required
+            autoComplete="new-password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+          />
+        </div>
 
         {error && (
-          <p role="alert" className="mb-4 text-sm text-status-danger">
+          <p role="alert" className="mt-4 rounded-lg bg-status-danger/10 px-3.5 py-2.5 text-sm text-status-danger">
             {error}
           </p>
         )}
 
-        <Button type="submit" variant="primary" loading={submitting} className="w-full">
+        <Button type="submit" variant="primary" loading={submitting} className="mt-4 w-full">
           Reset password
         </Button>
 
-        <p className="mt-4 text-center text-sm text-text-secondary">
+        <p className="mt-6 text-center text-sm text-text-secondary">
           <Link to="/login" className="font-medium text-primary hover:underline">
             ← Back to sign in
           </Link>
         </p>
       </form>
-    </div>
+    </AuthLayout>
   );
 }
 
 function InvalidTokenNotice() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-surface-page px-4">
-      <div className="w-full max-w-sm rounded-lg bg-surface-card p-8 text-center shadow-lg">
+    <AuthLayout>
+      <div className="rounded-xl border border-border-default bg-surface-card p-8 text-center shadow-card">
         <ShieldAlert size={40} className="mx-auto mb-3 text-status-danger" aria-hidden="true" />
-        <h1 className="mb-2 text-lg font-semibold text-text-primary">Invalid reset link</h1>
-        <p className="mb-6 text-sm text-text-secondary">
-          This reset link has expired or already been used — request a new one.
-        </p>
+        <h1 className="mb-2 text-xl font-bold tracking-tight text-text-primary">Invalid reset link</h1>
+        <p className="mb-6 text-sm text-text-secondary">This reset link has expired or already been used — request a new one.</p>
         <Link to="/forgot-password" className="text-sm font-medium text-primary hover:underline">
           Request a new link →
         </Link>
       </div>
-    </div>
+    </AuthLayout>
   );
 }

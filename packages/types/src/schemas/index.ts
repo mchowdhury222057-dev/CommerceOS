@@ -5,3 +5,4 @@ export * from "./product.schema";
 export * from "./order.schema";
 export * from "./theme.schema";
 export * from "./impersonation.schema";
+export * from "./verification.schema";

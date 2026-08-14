@@ -10,6 +10,9 @@ import StoreManagementPage from "./pages/StoreManagementPage";
 import ThemeEditorPage from "./pages/ThemeEditorPage";
 import AuditLogPage from "./pages/AuditLogPage";
 import StoreActivityPage from "./pages/StoreActivityPage";
+import VerificationCenterPage from "./pages/VerificationCenterPage";
+import VerificationReviewPage from "./pages/VerificationReviewPage";
+import ProfilePage from "./pages/ProfilePage";
 
 export const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
@@ -29,7 +32,10 @@ export const router = createBrowserRouter([
       { path: "stores", element: <StoreManagementPage /> },
       { path: "stores/:storeId/theme", element: <ThemeEditorPage /> },
       { path: "stores/:storeId/activity", element: <StoreActivityPage /> },
+      { path: "verifications", element: <VerificationCenterPage /> },
+      { path: "verifications/:verificationId", element: <VerificationReviewPage /> },
       { path: "audit-logs", element: <AuditLogPage /> },
+      { path: "profile", element: <ProfilePage /> },
     ],
   },
 ]);

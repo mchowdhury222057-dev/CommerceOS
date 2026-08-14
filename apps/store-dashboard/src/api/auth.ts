@@ -15,6 +15,7 @@ export interface SignupInput {
   slug: string;
   ownerName: string;
   email: string;
+  phone: string;
   password: string;
 }
 

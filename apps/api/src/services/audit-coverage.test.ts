@@ -23,8 +23,18 @@ const mockRedis = {
 };
 vi.mock("../lib/redis.js", () => ({ redis: mockRedis }));
 
+// suspendStore (this milestone) looks up the owner's email to notify them -
+// mocked out so this suite never makes a real SMTP/Ethereal call.
+vi.mock("./email.service.js", () => ({
+  sendStoreApprovalEmail: vi.fn().mockResolvedValue(undefined),
+  sendStoreReactivationEmail: vi.fn().mockResolvedValue(undefined),
+  sendStoreRejectionEmail: vi.fn().mockResolvedValue(undefined),
+  sendStoreSuspensionEmail: vi.fn().mockResolvedValue(undefined),
+}));
+
 interface FakeTx {
   store: { findUnique: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
+  user: { findFirst: ReturnType<typeof vi.fn> };
   storefront: { findUnique: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
   storefrontVersion: {
     findUnique: ReturnType<typeof vi.fn>;
@@ -41,6 +51,7 @@ interface FakeTx {
 
 const mockPrisma: FakeTx & { $transaction: ReturnType<typeof vi.fn> } = {
   store: { findUnique: vi.fn(), update: vi.fn() },
+  user: { findFirst: vi.fn() },
   storefront: { findUnique: vi.fn(), update: vi.fn() },
   storefrontVersion: {
     findUnique: vi.fn(),
@@ -68,11 +79,12 @@ const storeOwner = { id: "owner-1", email: "owner@store.test", role: "STORE_OWNE
 beforeEach(() => {
   vi.clearAllMocks();
   mockPrisma.$transaction.mockImplementation(async (fn: (tx: FakeTx) => unknown) => fn(mockPrisma));
+  mockPrisma.user.findFirst.mockResolvedValue(null);
 });
 
 describe("audit coverage - Store Management (Part D.2.2)", () => {
   it("suspendStore writes a StoreSuspended audit entry", async () => {
-    mockPrisma.store.findUnique.mockResolvedValue({ id: "store-1", status: "ACTIVE" });
+    mockPrisma.store.findUnique.mockResolvedValue({ id: "store-1", status: "APPROVED" });
     mockPrisma.store.update.mockResolvedValue({ id: "store-1", status: "SUSPENDED" });
 
     await suspendStore("store-1", "policy violation", masterAdmin);

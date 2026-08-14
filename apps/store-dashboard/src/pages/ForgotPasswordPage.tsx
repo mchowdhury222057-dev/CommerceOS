@@ -5,6 +5,8 @@ import { KeyRound } from "lucide-react";
 import { Button } from "@commerceos/ui";
 import { requestPasswordReset } from "../api/auth";
 import { ApiError } from "../lib/api-client";
+import { AuthLayout } from "../components/AuthLayout";
+import { Input } from "../components/ui/Input";
 
 // Per SRS Part D.1.5 - the response message is identical whether or not the
 // account exists (never confirm/deny an email is registered). `resetLink`
@@ -34,25 +36,21 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-surface-page px-4">
-      <div className="w-full max-w-sm rounded-lg bg-surface-card p-8 shadow-lg">
-        <KeyRound size={28} className="mb-3 text-primary" aria-hidden="true" />
-        <h1 className="mb-1 text-lg font-semibold text-text-primary">Reset your password</h1>
-        <p className="mb-6 text-sm text-text-secondary">
-          Enter the email on your account and we'll generate a reset link.
-        </p>
+    <AuthLayout>
+      <div className="rounded-xl border border-border-default bg-surface-card p-8 shadow-card">
+        <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <KeyRound size={18} aria-hidden="true" />
+        </span>
+        <h1 className="mb-1 text-xl font-bold tracking-tight text-text-primary">Reset your password</h1>
+        <p className="mb-6 text-sm text-text-secondary">Enter the email on your account and we'll generate a reset link.</p>
 
         {message ? (
           <div>
-            <p className="mb-4 rounded-md bg-primary-subtle p-3 text-sm text-text-primary">{message}</p>
+            <p className="mb-4 rounded-lg bg-primary-subtle px-3.5 py-2.5 text-sm text-text-primary">{message}</p>
             {resetLink && (
-              <div className="mb-4 rounded-md border border-dashed border-amber-400 bg-amber-50 p-3">
-                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-amber-700">
-                  Dev Mode — no email sending yet
-                </p>
-                <p className="mb-2 text-xs text-amber-800">
-                  In production this link would be emailed. For now, use it directly:
-                </p>
+              <div className="mb-4 rounded-lg border border-dashed border-amber-400 bg-amber-50 p-3">
+                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-amber-700">Dev Mode — no email sending yet</p>
+                <p className="mb-2 text-xs text-amber-800">In production this link would be emailed. For now, use it directly:</p>
                 <a href={resetLink} className="break-all text-xs font-medium text-amber-900 underline hover:no-underline">
                   {resetLink}
                 </a>
@@ -64,30 +62,19 @@ export default function ForgotPasswordPage() {
           </div>
         ) : (
           <form onSubmit={handleSubmit}>
-            <label htmlFor="email" className="mb-1 block text-sm font-medium text-text-primary">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              required
-              autoComplete="username"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="mb-4 w-full rounded-md border border-border-default px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
-            />
+            <Input label="Email" type="email" required autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} />
 
             {error && (
-              <p role="alert" className="mb-4 text-sm text-status-danger">
+              <p role="alert" className="mt-4 rounded-lg bg-status-danger/10 px-3.5 py-2.5 text-sm text-status-danger">
                 {error}
               </p>
             )}
 
-            <Button type="submit" variant="primary" loading={submitting} className="w-full">
+            <Button type="submit" variant="primary" loading={submitting} className="mt-4 w-full">
               Send reset link
             </Button>
 
-            <p className="mt-4 text-center text-sm text-text-secondary">
+            <p className="mt-6 text-center text-sm text-text-secondary">
               <Link to="/login" className="font-medium text-primary hover:underline">
                 ← Back to sign in
               </Link>
@@ -95,6 +82,6 @@ export default function ForgotPasswordPage() {
           </form>
         )}
       </div>
-    </div>
+    </AuthLayout>
   );
 }

@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import type { AuthUser, Role } from "@commerceos/types";
 import { AppError } from "../lib/errors.js";
+import { prisma } from "../lib/prisma.js";
 import { isSessionActive } from "../services/session.service.js";
 import { isImpersonationSessionActive } from "../services/impersonation.service.js";
 
@@ -142,4 +143,32 @@ export function requireRole(...allowedRoles: Role[]) {
 export function getAuthUser(req: Request): RequestUser {
   if (!req.user) throw AppError.unauthorized("Unauthenticated");
   return req.user;
+}
+
+// Per Section 24 - every protected Store Owner API (products, orders,
+// customers, staff) must check Store.status = APPROVED on the backend,
+// not just gate the frontend's Sidebar/TopNav (StoreAccessGate). Always a
+// fresh DB read - status can change between one request and the next, and
+// the JWT itself never carries it. A Master Administrator acting via an
+// active impersonation session (already verified by requireStoreAccess)
+// is exempt - they need to be able to review a Pending/Suspended store's
+// data as part of moderation, which is a different access path from the
+// Store Owner's own login.
+export async function requireApprovedStore(req: Request, _res: Response, next: NextFunction) {
+  try {
+    const user = req.user;
+    if (!user) throw AppError.unauthorized("Unauthenticated");
+    if (user.role === "MASTER_ADMIN") return next();
+
+    const { storeId } = req.params;
+    const store = await prisma.store.findUnique({ where: { id: storeId }, select: { status: true } });
+    if (!store) throw AppError.notFound(`Store ${storeId} not found`);
+
+    if (store.status !== "APPROVED") {
+      throw AppError.forbidden(`This store is ${store.status.toLowerCase()} and cannot access this resource`, `STORE_${store.status}`);
+    }
+    next();
+  } catch (error) {
+    next(error);
+  }
 }

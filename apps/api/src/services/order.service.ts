@@ -87,7 +87,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<Order> {
 
   const result = await prisma.$transaction(async (tx) => {
     const store = await tx.store.findUnique({ where: { id: input.storeId } });
-    if (!store || store.status !== "ACTIVE") {
+    if (!store || store.status !== "APPROVED") {
       throw AppError.conflict("This store is not currently accepting orders", "STORE_NOT_ACTIVE");
     }
 

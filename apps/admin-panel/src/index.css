@@ -2,42 +2,108 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Design tokens - per SRS Addendum Part A.11 */
+/*
+  Design tokens - per SRS Addendum Part A.11. Rebuilt as CSS custom
+  properties (RGB triplets, not hex) so opacity-modifier utilities
+  (bg-primary/10, text-danger/60, ...) compile correctly - Tailwind can't
+  decompose an opaque hex/var() into an alpha channel at build time - and
+  so dark mode can flip every semantic token under one :root.dark class
+  without a dark: variant on every component. Same technique already used
+  in the Store Dashboard's redesign and the Storefront's palette.
+
+  admin-sidebar / amber-impersonation are deliberately NOT theme-dependent
+  variables here - the dark navy sidebar is a fixed brand/identity marker
+  ("dark sidebar = the platform" per Part A.1.4), not something that
+  should lighten just because the admin toggled dark mode; they stay as
+  the shared preset's static hex values in tailwind.config.js.
+*/
 :root {
-  --color-primary: #4F46E5;
-  --color-primary-hover: #4338CA;
-  --surface-page: #F8FAFC;
-  --surface-card: #FFFFFF;
-  --border-default: #E2E8F0;
-  --text-primary: #0F172A;
-  --text-secondary: #475569;
+  /* Tells the browser which palette to use for chrome it renders itself -
+     native date-picker icons, checkbox/radio ticks, select dropdown
+     panels, scrollbars - none of which are reachable via our own Tailwind
+     classes. Without this, that chrome stays light-styled even under
+     :root.dark, which is how a date input can end up with a black
+     calendar icon invisible against its own dark background. */
+  color-scheme: light;
+
+  --color-primary: 79 70 229; /* #4F46E5 */
+  --color-primary-hover: 67 56 202; /* #4338CA */
+  --color-primary-subtle: 238 242 255; /* #EEF2FF */
+
+  --color-success: 22 163 74; /* #16A34A */
+  --color-caution: 217 119 6; /* #D97706 */
+  --color-danger: 220 38 38; /* #DC2626 */
+  --color-info: 37 99 235; /* #2563EB */
+  --color-neutral: 100 116 139; /* #64748B */
+
+  --color-surface-page: 248 250 252; /* #F8FAFC */
+  --color-surface-card: 255 255 255; /* #FFFFFF */
+  --color-surface-sunken: 241 245 249; /* #F1F5F9 */
+
+  --color-border-default: 226 232 240; /* #E2E8F0 */
+  --color-border-strong: 203 213 225; /* #CBD5E1 */
+
+  --color-text-primary: 15 23 42; /* #0F172A */
+  --color-text-secondary: 71 85 105; /* #475569 */
+  --color-text-disabled: 148 163 184; /* #94A3B8 */
+
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.06);
+  --shadow-card-hover: 0 4px 12px rgba(15, 23, 42, 0.08), 0 2px 4px rgba(15, 23, 42, 0.06);
+  --shadow-popover: 0 10px 32px rgba(15, 23, 42, 0.14), 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+:root.dark {
+  color-scheme: dark;
+
+  --color-primary: 99 102 241; /* #6366F1 indigo-500 */
+  --color-primary-hover: 129 140 248; /* #818CF8 indigo-400 */
+  --color-primary-subtle: 30 27 75; /* #1E1B4B indigo-950 */
+
+  --color-success: 74 222 128; /* #4ADE80 green-400 */
+  --color-caution: 251 191 36; /* #FBBF24 amber-400 */
+  --color-danger: 248 113 113; /* #F87171 red-400 */
+  --color-info: 96 165 250; /* #60A5FA blue-400 */
+  --color-neutral: 148 163 184; /* #94A3B8 slate-400 */
+
+  --color-surface-page: 8 12 22; /* #080C16 */
+  --color-surface-card: 17 24 39; /* #111827 slate-900 */
+  --color-surface-sunken: 26 33 51; /* #1A2133 */
+
+  --color-border-default: 31 41 55; /* #1F2937 */
+  --color-border-strong: 55 65 81; /* #374151 */
+
+  --color-text-primary: 243 244 246; /* #F3F4F6 */
+  --color-text-secondary: 156 163 175; /* #9CA3AF */
+  --color-text-disabled: 100 116 139; /* #64748B */
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.35);
+  --shadow-card-hover: 0 4px 16px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --shadow-popover: 0 12px 36px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
 body {
-  @apply bg-surface-page text-text-primary font-sans;
+  @apply bg-surface-page text-text-primary font-sans antialiased transition-colors duration-150;
 }
 
 /* Per SRS Part 22 - subtle visual interest for the main content area's
-   empty page space only; every card/table/panel stays on a solid white
-   surface per the existing design system. Deliberately no blur/glass (an
-   earlier, explicit design-system exclusion for this audience's
-   legibility needs) - just a fine dot grid and a soft top-fade, both using
-   the existing indigo accent at very low opacity so it reads as texture,
-   not decoration. Applied once in AdminLayout.tsx so it's consistent
-   across every Admin Panel page automatically. */
+   empty page space only; every card/table/panel stays on a solid
+   surface. Deliberately no blur/glass. Applied once in AdminLayout.tsx so
+   it's consistent across every page automatically. Opacity is higher in
+   dark mode - the same alpha value reads much fainter against near-black. */
 .admin-content-bg {
-  background-color: var(--surface-page);
+  background-color: rgb(var(--color-surface-page));
   background-image:
-    radial-gradient(circle at 1px 1px, rgba(79, 70, 229, 0.07) 1px, transparent 0),
-    linear-gradient(180deg, rgba(79, 70, 229, 0.04) 0%, rgba(79, 70, 229, 0) 420px);
+    radial-gradient(circle at 1px 1px, rgb(var(--color-primary) / 0.07) 1px, transparent 0),
+    linear-gradient(180deg, rgb(var(--color-primary) / 0.04) 0%, rgb(var(--color-primary) / 0) 420px);
   background-size: 24px 24px, 100% 100%;
   background-repeat: repeat, no-repeat;
 }
+:root.dark .admin-content-bg {
+  background-image:
+    radial-gradient(circle at 1px 1px, rgb(var(--color-primary) / 0.14) 1px, transparent 0),
+    linear-gradient(180deg, rgb(var(--color-primary) / 0.08) 0%, rgb(var(--color-primary) / 0) 420px);
+}
 
-/* Per SRS Part 22.8's motion tokens (120-200ms, ease-in-out) - this
-   codebase has no separate Modal/Drawer component yet, so this is applied
-   to the closest existing analog: inline panels that reveal on demand
-   (e.g. StoreManagementPage's "Create Store" form). */
 @keyframes panel-in {
   from {
     opacity: 0;
