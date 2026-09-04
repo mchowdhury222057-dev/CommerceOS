@@ -45,6 +45,28 @@ export interface StoreSuspendedPayload {
   reason: string;
 }
 
+// Merchant verification/approval milestone - StoreApproved covers a
+// brand-new PENDING store's first go-live; StoreReactivated is the
+// distinct event for a previously-SUSPENDED store returning to APPROVED,
+// even though both are triggered by the same unified "Approve" action
+// one layer up (store.service.ts's approveStore).
+export interface StoreApprovedPayload {
+  storeId: string;
+}
+
+export interface StoreReactivatedPayload {
+  storeId: string;
+}
+
+export interface StoreRejectedPayload {
+  storeId: string;
+  reason: string;
+}
+
+export interface VerificationReviewOpenedPayload {
+  verificationId: string;
+}
+
 export interface StoreThemePublishedPayload {
   storeId: string;
   storefrontVersionId: string;
@@ -170,6 +192,10 @@ export interface EventPayloadMap {
   UserLoggedIn: UserLoggedInPayload;
   StoreCreated: StoreCreatedPayload;
   StoreSuspended: StoreSuspendedPayload;
+  StoreApproved: StoreApprovedPayload;
+  StoreReactivated: StoreReactivatedPayload;
+  StoreRejected: StoreRejectedPayload;
+  VerificationReviewOpened: VerificationReviewOpenedPayload;
   StoreThemePublished: StoreThemePublishedPayload;
   StoreThemeRolledBack: StoreThemeRolledBackPayload;
   ProductCreated: ProductCreatedPayload;

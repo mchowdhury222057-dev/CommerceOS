@@ -8,10 +8,15 @@ export interface ListOrdersResult {
   pageSize: number;
 }
 
-export function listOrders(storeId: string, filters: { status?: OrderStatus[]; page?: number } = {}): Promise<ListOrdersResult> {
+// Note: order.service.ts's listOrders also supports dateFrom/dateTo, but
+// the route handler (orders.routes.ts) never reads them off req.query - so
+// they're not actually reachable from a client without a backend change,
+// which is out of scope this round. Only status/page/pageSize are wired.
+export function listOrders(storeId: string, filters: { status?: OrderStatus[]; page?: number; pageSize?: number } = {}): Promise<ListOrdersResult> {
   const query = new URLSearchParams();
   if (filters.status?.length) query.set("status", filters.status.join(","));
   if (filters.page) query.set("page", String(filters.page));
+  if (filters.pageSize) query.set("pageSize", String(filters.pageSize));
   const qs = query.toString();
   return api.get<ListOrdersResult>(`/api/store/${storeId}/orders${qs ? `?${qs}` : ""}`);
 }

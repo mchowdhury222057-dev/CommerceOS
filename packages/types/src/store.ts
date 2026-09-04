@@ -1,5 +1,7 @@
-// Per SRS Part 6.2
-export type StoreStatus = "PENDING_SETUP" | "ACTIVE" | "SUSPENDED" | "ARCHIVED";
+// Per SRS Part 6.2, renamed in place for the merchant verification/approval
+// milestone (PENDING_SETUP -> PENDING, ACTIVE -> APPROVED, REJECTED added).
+// ARCHIVED is unchanged - reserved, no code path sets it yet.
+export type StoreStatus = "PENDING" | "APPROVED" | "SUSPENDED" | "REJECTED" | "ARCHIVED";
 
 export interface Store {
   id: string;

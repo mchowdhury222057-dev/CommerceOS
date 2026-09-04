@@ -11,6 +11,7 @@ export const checkoutSchema = z.object({
   customerPhone: z.string().min(1, "Phone number is required"),
   deliveryAddress: z.string().min(1, "Delivery address is required"),
   deliveryAreaId: z.string().nullish(),
+  customerNote: z.string().max(1000).nullish(),
   items: z.array(checkoutItemSchema).min(1, "Cart cannot be empty"),
 });
 export type CheckoutInput = z.infer<typeof checkoutSchema>;

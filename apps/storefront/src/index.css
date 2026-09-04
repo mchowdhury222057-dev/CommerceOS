@@ -2,15 +2,60 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Design tokens - per SRS Addendum Part A.11 */
+/* Storefront design tokens - deliberately its own palette, distinct from
+   the Admin Panel/Store Dashboard's indigo (SRS Part 7/22 treats this as a
+   separate "skin": a customer-facing retail site, not an internal tool).
+   Every color Tailwind class in this app (bg-primary, text-text-secondary,
+   etc. - see tailwind.config.js) resolves through these CSS custom
+   properties rather than a fixed hex baked into the Tailwind build. That's
+   the actual point: a future "pull colors from
+   StorefrontVersion.themeSettings" pass becomes `document.documentElement
+   .style.setProperty(...)` per store, not a rewrite of every component.
+   This pass only sets the DEFAULT every store gets today - wiring live
+   per-store values is explicitly a later milestone.
+
+   Values are "R G B" triplets, not hex - required so Tailwind's opacity
+   modifiers (bg-accent/10, bg-status-success/10, etc., used throughout
+   these components) can blend in an alpha channel at build time via the
+   rgb(var(--x) / <alpha-value>) pattern in tailwind.config.js. A hex
+   string can't be decomposed that way, so a future integration setting
+   these dynamically must also convert to "R G B" form, not pass a hex
+   string straight through. */
 :root {
-  --color-primary: #4F46E5;
-  --color-primary-hover: #4338CA;
-  --surface-page: #F8FAFC;
-  --surface-card: #FFFFFF;
-  --border-default: #E2E8F0;
-  --text-primary: #0F172A;
-  --text-secondary: #475569;
+  /* Teal reads as trustworthy/calm without being cold (vs. the Admin
+     Panel's indigo) - deliberate for Part 2.3's COD trust factor: this is
+     a customer deciding whether to hand over their address and phone
+     number to an unfamiliar seller. */
+  --color-primary: 15 118 110; /* #0f766e */
+  --color-primary-hover: 17 94 89; /* #115e59 */
+  --color-primary-subtle: 240 253 250; /* #f0fdfa */
+
+  /* Warm burnt-orange accent, reserved for conversion moments (Add to
+     Cart, Place Order, price emphasis) - gives CTAs energy against the
+     calmer teal without competing with it. */
+  --color-accent: 234 88 12; /* #ea580c */
+  --color-accent-hover: 194 65 12; /* #c2410c */
+
+  /* Warm neutrals (stone), not the Admin Panel's cool slate - reads softer
+     and more "retail," less "internal dashboard." */
+  --color-surface-page: 250 250 249; /* #fafaf9 */
+  --color-surface-card: 255 255 255; /* #ffffff */
+  --color-surface-sunken: 245 245 244; /* #f5f5f4 */
+  --color-border-default: 231 229 228; /* #e7e5e4 */
+  --color-border-strong: 214 211 209; /* #d6d3d1 */
+  --color-text-primary: 28 25 23; /* #1c1917 */
+  --color-text-secondary: 87 83 78; /* #57534e */
+  --color-text-disabled: 168 162 158; /* #a8a29e */
+
+  --color-status-success: 22 163 74; /* #16a34a */
+  --color-status-danger: 220 38 38; /* #dc2626 */
+
+  /* Slightly larger than the Admin Panel's radius scale - reads friendlier
+     on product cards/buttons, per Part 2.3's approachability goal. */
+  --radius-md: 10px;
+  --radius-lg: 16px;
+
+  --font-sans: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, "Noto Sans Bengali", sans-serif;
 }
 
 body {

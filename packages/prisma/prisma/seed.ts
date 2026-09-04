@@ -72,6 +72,95 @@ const PRODUCTS: SeedProduct[] = [
   },
 ];
 
+const DEMO_CUSTOMERS = [
+  { name: "Fatima Rahman", phone: "01711000001" },
+  { name: "Arif Hossain", phone: "01711000002" },
+  { name: "Nusrat Jahan", phone: "01711000003" },
+  { name: "Kamal Uddin", phone: "01711000004" },
+];
+
+// Orders per day, oldest (13 days ago) to newest (today) - deliberately
+// includes zero-order days so the Dashboard's sales trend chart (Part
+// 18.1) demonstrably renders a 0 bar rather than a gap, not just a
+// monotonic-looking bar chart that could hide a missing-day bug.
+const ORDER_COUNTS_BY_DAY = [2, 1, 3, 0, 2, 4, 1, 3, 2, 0, 3, 2, 4, 2];
+
+// Per SRS Part 18.1 - populates the demo store with enough Order history
+// that the Dashboard's sales trend chart, revenue KPI, and pending-COD KPI
+// all show real (not all-zero) data out of the box. Skipped if this store
+// already has orders, so re-running the seed never piles up duplicates.
+async function seedDemoOrders(storeId: string, products: Array<{ id: string; basePrice: number; variants: Array<{ id: string }> }>) {
+  const existingCount = await prisma.order.count({ where: { storeId } });
+  if (existingCount > 0) return;
+
+  const deliveryArea = await prisma.deliveryArea.upsert({
+    where: { storeId_name: { storeId, name: "Dhaka Metro" } },
+    update: {},
+    create: { storeId, name: "Dhaka Metro", deliveryCharge: 60 },
+  });
+
+  const customers = await Promise.all(
+    DEMO_CUSTOMERS.map((c) =>
+      prisma.customer.upsert({
+        where: { storeId_phone: { storeId, phone: c.phone } },
+        update: {},
+        create: { storeId, name: c.name, phone: c.phone },
+      }),
+    ),
+  );
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  let orderCount = 0;
+  for (let dayIndex = 0; dayIndex < ORDER_COUNTS_BY_DAY.length; dayIndex++) {
+    const daysAgo = ORDER_COUNTS_BY_DAY.length - 1 - dayIndex;
+    const isRecent = daysAgo <= 1; // today/yesterday - still awaiting COD confirmation
+
+    for (let i = 0; i < ORDER_COUNTS_BY_DAY[dayIndex]; i++) {
+      const createdAt = new Date(today);
+      createdAt.setDate(createdAt.getDate() - daysAgo);
+      createdAt.setHours(9 + ((orderCount * 3) % 10), (orderCount * 17) % 60, 0, 0);
+
+      const customer = customers[orderCount % customers.length];
+      const product = products[orderCount % products.length];
+      const variant = product.variants[orderCount % product.variants.length];
+      const quantity = 1 + (orderCount % 3);
+      const total = product.basePrice * quantity + deliveryArea.deliveryCharge.toNumber();
+
+      const status = isRecent ? (orderCount % 2 === 0 ? "PENDING" : "CONFIRMED") : orderCount % 5 === 0 ? "CANCELLED" : "DELIVERED";
+      const isPaid = status === "DELIVERED";
+
+      const order = await prisma.order.create({
+        data: {
+          storeId,
+          customerId: customer.id,
+          status,
+          paymentMethod: "CASH_ON_DELIVERY",
+          codConfirmedByCall: !isRecent,
+          deliveryAddress: "House 12, Road 5, Dhanmondi, Dhaka",
+          deliveryAreaId: deliveryArea.id,
+          isPaid,
+          total,
+          createdAt,
+          updatedAt: createdAt,
+          items: {
+            create: [{ productId: product.id, variantId: variant.id, quantity, unitPrice: product.basePrice }],
+          },
+        },
+      });
+
+      await prisma.orderStatusHistory.create({
+        data: { orderId: order.id, status: order.status, note: null, createdAt },
+      });
+
+      orderCount++;
+    }
+  }
+
+  console.log(`Seeded ${orderCount} demo orders across the last ${ORDER_COUNTS_BY_DAY.length} days.`);
+}
+
 async function main() {
   console.log("Seeding CommerceOS demo data...\n");
 
@@ -127,6 +216,7 @@ async function main() {
     create: { storeId: store.id, name: "General", slug: "general" },
   });
 
+  const productRecords: Array<{ id: string; basePrice: number; variants: Array<{ id: string }> }> = [];
   for (const p of PRODUCTS) {
     const product = await prisma.product.upsert({
       where: { storeId_slug: { storeId: store.id, slug: p.slug } },
@@ -137,20 +227,24 @@ async function main() {
         description: p.description,
         categoryId: category.id,
         basePrice: p.basePrice,
-        images: [],
         status: "ACTIVE",
         slug: p.slug,
       },
     });
 
+    const variants: Array<{ id: string }> = [];
     for (const v of p.variants) {
-      await prisma.productVariant.upsert({
+      const variant = await prisma.productVariant.upsert({
         where: { sku: v.sku },
         update: { stock: v.stock },
         create: { productId: product.id, sku: v.sku, attributes: v.attributes, stock: v.stock },
       });
+      variants.push({ id: variant.id });
     }
+    productRecords.push({ id: product.id, basePrice: p.basePrice, variants });
   }
+
+  await seedDemoOrders(store.id, productRecords);
 
   console.log("Seed complete.\n");
   console.log("================ LOGIN CREDENTIALS ================");

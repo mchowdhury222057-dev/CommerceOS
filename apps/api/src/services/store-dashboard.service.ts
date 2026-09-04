@@ -9,8 +9,19 @@ function startOfDay(d: Date): Date {
   return copy;
 }
 
+// Local calendar date (not d.toISOString().slice(0, 10)) - the server runs
+// in Asia/Dhaka (UTC+6, this platform's target market per SRS Part 2.3),
+// so a UTC-based key would silently disagree with startOfDay's local
+// midnight: local-midnight-to-6am orders would fall on the "wrong" UTC
+// date and land in a bucket the trend range never pre-created, appearing
+// as an extra out-of-range day instead of "today". Matching both
+// startOfDay and this function to local time keeps every order's bucket
+// key consistent with the range boundary that was generated for it.
 function dateKey(d: Date): string {
-  return d.toISOString().slice(0, 10); // YYYY-MM-DD
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 export interface StoreDashboardSummary {

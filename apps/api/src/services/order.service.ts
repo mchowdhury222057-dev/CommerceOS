@@ -73,6 +73,7 @@ export interface PlaceOrderInput {
   customerPhone: string;
   deliveryAddress: string;
   deliveryAreaId?: string | null;
+  customerNote?: string | null;
   items: Array<{ productId: string; variantId: string; quantity: number }>;
 }
 
@@ -86,7 +87,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<Order> {
 
   const result = await prisma.$transaction(async (tx) => {
     const store = await tx.store.findUnique({ where: { id: input.storeId } });
-    if (!store || store.status !== "ACTIVE") {
+    if (!store || store.status !== "APPROVED") {
       throw AppError.conflict("This store is not currently accepting orders", "STORE_NOT_ACTIVE");
     }
 
@@ -114,7 +115,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<Order> {
         where: { id: line.variantId },
         include: { product: true },
       });
-      if (!variant || variant.product.storeId !== input.storeId || variant.product.status !== "ACTIVE") {
+      if (!variant || variant.product.storeId !== input.storeId || variant.product.status !== "ACTIVE" || !variant.isActive) {
         throw AppError.conflict(`Product variant ${line.variantId} is not available`, "PRODUCT_UNAVAILABLE");
       }
       // Placement never decrements stock (Part 8.3), but an already-exhausted
@@ -149,6 +150,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<Order> {
         customerId: customer.id,
         deliveryAddress: input.deliveryAddress,
         deliveryAreaId: input.deliveryAreaId ?? null,
+        customerNote: input.customerNote ?? null,
         total,
         items: { create: itemsData },
       },

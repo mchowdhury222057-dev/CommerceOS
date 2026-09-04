@@ -12,7 +12,11 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
   const user = useAuthStore((s) => s.user);
 
   if (status === "checking") {
-    return <div className="flex min-h-screen items-center justify-center text-text-secondary">Loading…</div>;
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-surface-page">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-border-default border-t-primary" aria-label="Loading" />
+      </div>
+    );
   }
   if (status === "unauthenticated" || !user || user.role !== "MASTER_ADMIN") {
     return <Navigate to="/login" replace />;

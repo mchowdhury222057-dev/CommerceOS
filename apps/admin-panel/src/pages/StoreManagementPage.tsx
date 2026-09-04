@@ -2,81 +2,107 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Paintbrush, UserCog } from "lucide-react";
-import { Button, StatusBadge } from "@commerceos/ui";
-import type { StatusTone } from "@commerceos/ui";
+import { Activity, Paintbrush, Store as StoreIcon, UserCog } from "lucide-react";
+import { Button } from "@commerceos/ui";
+import { toast } from "../components/ui/Toaster";
 import { createStore, listStores, setStoreStatus } from "../api/stores";
 import { startImpersonation } from "../api/impersonation";
 import { ApiError } from "../lib/api-client";
+import { Badge } from "../components/ui/Badge";
+import type { BadgeTone } from "../components/ui/Badge";
+import { SectionHeader } from "../components/ui/SectionHeader";
+import { SearchBar } from "../components/ui/SearchBar";
+import { Input } from "../components/ui/Input";
+import { Table, TBody, TD, TH, THead, TR, TableState } from "../components/ui/Table";
+import { TableRowSkeleton } from "../components/ui/Skeleton";
+import { Pagination } from "../components/ui/Pagination";
+import { ConfirmDialog, PromptDialog } from "../components/ui/ConfirmDialog";
+import { Card, CardBody, CardHeader, CardTitle } from "../components/ui/Card";
 import type { AdminStore, StoreStatus } from "../lib/api-types";
 
-const STATUS_TONE: Record<StoreStatus, StatusTone> = {
-  PENDING_SETUP: "caution",
-  ACTIVE: "success",
+const STATUS_LABEL: Record<StoreStatus, string> = {
+  PENDING: "Pending Approval",
+  APPROVED: "Active",
+  SUSPENDED: "Suspended",
+  REJECTED: "Rejected",
+  ARCHIVED: "Archived",
+};
+
+const STATUS_TONE: Record<StoreStatus, BadgeTone> = {
+  PENDING: "caution",
+  APPROVED: "success",
   SUSPENDED: "danger",
+  REJECTED: "danger",
   ARCHIVED: "neutral",
 };
 
-// Per SRS Part 22.4's canonical Store Management pattern: a searchable,
-// filterable data table with status pills, a direct Edit Theme action per
-// row, and an amber-outlined Impersonate action requiring confirmation.
+const PAGE_SIZE = 15;
+
+// "approve" covers BOTH a brand-new PENDING application and a previously
+// SUSPENDED store - one button, one code path, per this milestone's
+// amendment. The backend's approveStore already merges these; this is
+// just the frontend half of that same unification (the button always
+// reads "Approve", never "Reactivate").
+type PendingAction =
+  | { kind: "approve"; store: AdminStore }
+  | { kind: "reject-reason"; store: AdminStore }
+  | { kind: "suspend-reason"; store: AdminStore }
+  | { kind: "impersonate-reason"; store: AdminStore }
+  | { kind: "impersonate-confirm"; store: AdminStore; reason: string }
+  | null;
+
+// Per SRS Part 22.4's canonical Store Management pattern: a searchable
+// data table with status pills, a direct Edit Theme action per row, and
+// an amber-outlined Impersonate action requiring confirmation. No Delete
+// or Reset Password actions here yet - both need new backend work first
+// (see this milestone's Section B).
 export default function StoreManagementPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [pendingAction, setPendingAction] = useState<PendingAction>(null);
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["stores", search],
-    queryFn: () => listStores({ search: search || undefined }),
+    queryKey: ["stores", search, page],
+    queryFn: () => listStores({ search: search || undefined, page, pageSize: PAGE_SIZE }),
+    placeholderData: (prev) => prev,
   });
 
   const statusMutation = useMutation({
-    mutationFn: ({ storeId, status, reason }: { storeId: string; status: "ACTIVE" | "SUSPENDED"; reason?: string }) =>
+    mutationFn: ({ storeId, status, reason }: { storeId: string; status: "APPROVED" | "SUSPENDED" | "REJECTED"; reason?: string }) =>
       setStoreStatus(storeId, { status, reason }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["stores"] }),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["stores"] });
+      const message = variables.status === "SUSPENDED" ? "Store suspended" : variables.status === "REJECTED" ? "Application rejected" : "Store approved";
+      toast.success(message);
+      setPendingAction(null);
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Could not update store status"),
   });
 
   const impersonateMutation = useMutation({
     mutationFn: ({ storeId, reason }: { storeId: string; reason: string }) => startImpersonation(storeId, reason),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["impersonation", "active"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["impersonation", "active"] });
+      toast.success("Impersonation session started");
+      setPendingAction(null);
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Could not start impersonation"),
   });
-
-  function handleToggleStatus(store: AdminStore) {
-    if (store.status === "ACTIVE") {
-      const reason = window.prompt(`Reason for suspending "${store.name}"?`);
-      if (!reason) return;
-      statusMutation.mutate({ storeId: store.id, status: "SUSPENDED", reason });
-    } else if (store.status === "SUSPENDED") {
-      statusMutation.mutate({ storeId: store.id, status: "ACTIVE" });
-    }
-  }
-
-  // Per SRS Part 6.2 - a distinct action from Suspend/Reactivate: approving
-  // moves a brand-new store out of Pending Setup for the first time.
-  function handleApprove(store: AdminStore) {
-    if (!window.confirm(`Approve "${store.name}" and make it live?`)) return;
-    statusMutation.mutate({ storeId: store.id, status: "ACTIVE" });
-  }
-
-  function handleImpersonate(store: AdminStore) {
-    const reason = window.prompt(`Why are you impersonating the Store Owner of "${store.name}"?`);
-    if (!reason) return;
-    if (!window.confirm(`You are about to act AS the Store Owner of "${store.name}". Continue?`)) return;
-    impersonateMutation.mutate({ storeId: store.id, reason });
-  }
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-text-primary">Store Management</h1>
-          <p className="text-sm text-text-secondary">Every store on the platform, and the entry point into theme editing and impersonation.</p>
-        </div>
-        <Button variant="primary" onClick={() => setShowCreateForm((v) => !v)}>
-          {showCreateForm ? "Cancel" : "Create Store"}
-        </Button>
-      </div>
+      <SectionHeader
+        title="Store Management"
+        description="Every store on the platform, and the entry point into theme editing and impersonation."
+        actions={
+          <Button variant="primary" onClick={() => setShowCreateForm((v) => !v)}>
+            {showCreateForm ? "Cancel" : "+ Create Store"}
+          </Button>
+        }
+      />
 
       {showCreateForm && (
         <CreateStoreForm
@@ -87,93 +113,174 @@ export default function StoreManagementPage() {
         />
       )}
 
-      <input
-        type="search"
-        placeholder="Search stores by name…"
+      <SearchBar
         value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="mb-4 w-full max-w-sm rounded-md border border-border-default px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+        onChange={(e) => {
+          setSearch(e.target.value);
+          setPage(1);
+        }}
+        placeholder="Search stores by name…"
+        className="mb-4 max-w-sm"
       />
 
-      <div className="overflow-hidden rounded-lg border border-border-default bg-surface-card">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-surface-sunken text-xs uppercase tracking-wide text-text-secondary">
-            <tr>
-              <th className="px-4 py-3">Name</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Created</th>
-              <th className="px-4 py-3 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading && (
-              <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-text-secondary">
-                  Loading stores…
-                </td>
-              </tr>
-            )}
-            {isError && (
-              <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-status-danger">
-                  Could not load stores. Retry shortly.
-                </td>
-              </tr>
-            )}
-            {!isLoading && !isError && data?.stores.length === 0 && (
-              <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-text-secondary">
-                  No stores yet. Create your first store to get started.
-                </td>
-              </tr>
-            )}
-            {data?.stores.map((store) => (
-              <tr key={store.id} className="border-t border-border-default">
-                <td className="px-4 py-3 font-medium text-text-primary">
-                  {store.name}
-                  <div className="text-xs font-normal text-text-secondary">{store.slug}</div>
-                </td>
-                <td className="px-4 py-3">
-                  <StatusBadge tone={STATUS_TONE[store.status]} label={store.status.replace("_", " ")} />
-                </td>
-                <td className="px-4 py-3 text-text-secondary">{new Date(store.createdAt).toLocaleDateString()}</td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center justify-end gap-2">
-                    <button
-                      type="button"
-                      aria-label={`Edit theme for ${store.name}`}
-                      title="Edit Theme"
-                      onClick={() => navigate(`/stores/${store.id}/theme`)}
-                      className="rounded-md p-2 text-text-secondary hover:bg-surface-sunken hover:text-primary"
-                    >
-                      <Paintbrush size={16} aria-hidden="true" />
-                    </button>
-                    {store.status === "PENDING_SETUP" && (
-                      <Button variant="primary" size="sm" onClick={() => handleApprove(store)}>
-                        Approve
-                      </Button>
-                    )}
-                    {(store.status === "ACTIVE" || store.status === "SUSPENDED") && (
-                      <Button variant="secondary" size="sm" onClick={() => handleToggleStatus(store)}>
-                        {store.status === "ACTIVE" ? "Suspend" : "Reactivate"}
-                      </Button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => handleImpersonate(store)}
-                      disabled={impersonateMutation.isPending}
-                      className="inline-flex items-center gap-1.5 rounded-md border border-amber-impersonation px-3 py-1.5 text-sm font-medium text-amber-impersonation hover:bg-amber-impersonation/10 disabled:opacity-50"
-                    >
-                      <UserCog size={16} aria-hidden="true" />
-                      Impersonate
-                    </button>
+      <Table footer={data && <Pagination page={page} pageSize={PAGE_SIZE} total={data.total} onPageChange={setPage} />}>
+        <THead>
+          <tr>
+            <TH>Store</TH>
+            <TH>Owner</TH>
+            <TH>Status</TH>
+            <TH>Created</TH>
+            <TH className="text-right">Actions</TH>
+          </tr>
+        </THead>
+        <TBody>
+          {isLoading && Array.from({ length: 5 }, (_, i) => <TableRowSkeleton key={i} columns={5} />)}
+          {isError && (
+            <TableState colSpan={5} tone="danger">
+              Could not load stores. Retry shortly.
+            </TableState>
+          )}
+          {!isLoading && !isError && data?.stores.length === 0 && (
+            <TableState colSpan={5}>{search ? "No stores match your search." : "No stores yet. Create your first store to get started."}</TableState>
+          )}
+          {data?.stores.map((store) => (
+            <TR key={store.id}>
+              <TD>
+                <div className="flex items-center gap-3">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-subtle text-primary" aria-hidden="true">
+                    <StoreIcon size={16} />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="truncate font-medium text-text-primary">{store.name}</div>
+                    <div className="text-xs text-text-secondary">{store.slug}</div>
                   </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                </div>
+              </TD>
+              <TD>
+                {store.owner ? (
+                  <>
+                    <div className="text-text-primary">{store.owner.name}</div>
+                    <div className="text-xs text-text-secondary">{store.owner.email}</div>
+                  </>
+                ) : (
+                  <span className="text-text-secondary">No owner</span>
+                )}
+              </TD>
+              <TD>
+                <Badge tone={STATUS_TONE[store.status]}>{STATUS_LABEL[store.status]}</Badge>
+              </TD>
+              <TD className="text-text-secondary">{new Date(store.createdAt).toLocaleDateString()}</TD>
+              <TD>
+                <div className="flex items-center justify-end gap-1.5">
+                  <button
+                    type="button"
+                    aria-label={`View activity for ${store.name}`}
+                    title="View Store Activity"
+                    onClick={() => navigate(`/stores/${store.id}/activity`)}
+                    className="rounded-md p-2 text-text-secondary transition-colors hover:bg-surface-sunken hover:text-primary"
+                  >
+                    <Activity size={16} aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Edit theme for ${store.name}`}
+                    title="Edit Theme"
+                    onClick={() => navigate(`/stores/${store.id}/theme`)}
+                    className="rounded-md p-2 text-text-secondary transition-colors hover:bg-surface-sunken hover:text-primary"
+                  >
+                    <Paintbrush size={16} aria-hidden="true" />
+                  </button>
+                  {(store.status === "PENDING" || store.status === "SUSPENDED") && (
+                    <Button variant="primary" size="sm" onClick={() => setPendingAction({ kind: "approve", store })}>
+                      Approve
+                    </Button>
+                  )}
+                  {store.status === "PENDING" && (
+                    <Button variant="destructive" size="sm" onClick={() => setPendingAction({ kind: "reject-reason", store })}>
+                      Reject
+                    </Button>
+                  )}
+                  {store.status === "APPROVED" && (
+                    <Button variant="secondary" size="sm" onClick={() => setPendingAction({ kind: "suspend-reason", store })}>
+                      Suspend
+                    </Button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setPendingAction({ kind: "impersonate-reason", store })}
+                    disabled={impersonateMutation.isPending}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-amber-impersonation px-3 py-1.5 text-sm font-medium text-amber-impersonation transition-colors hover:bg-amber-impersonation/10 disabled:opacity-50"
+                  >
+                    <UserCog size={16} aria-hidden="true" />
+                    Impersonate
+                  </button>
+                </div>
+              </TD>
+            </TR>
+          ))}
+        </TBody>
+      </Table>
+
+      <ConfirmDialog
+        open={pendingAction?.kind === "approve"}
+        onOpenChange={(open) => !open && setPendingAction(null)}
+        title="Approve this store?"
+        description={
+          pendingAction?.kind === "approve"
+            ? pendingAction.store.status === "SUSPENDED"
+              ? `"${pendingAction.store.name}" will become visible to customers again.`
+              : `"${pendingAction.store.name}" will go live immediately.`
+            : undefined
+        }
+        confirmLabel="Approve"
+        loading={statusMutation.isPending}
+        onConfirm={() => pendingAction?.kind === "approve" && statusMutation.mutate({ storeId: pendingAction.store.id, status: "APPROVED" })}
+      />
+
+      <PromptDialog
+        open={pendingAction?.kind === "reject-reason"}
+        onOpenChange={(open) => !open && setPendingAction(null)}
+        title="Reject this application?"
+        description={pendingAction?.kind === "reject-reason" ? `Provide a reason for rejecting "${pendingAction.store.name}"'s application.` : undefined}
+        label="Reason for rejecting"
+        confirmLabel="Reject"
+        destructive
+        loading={statusMutation.isPending}
+        onSubmit={(reason) => pendingAction?.kind === "reject-reason" && statusMutation.mutate({ storeId: pendingAction.store.id, status: "REJECTED", reason })}
+      />
+
+      <PromptDialog
+        open={pendingAction?.kind === "suspend-reason"}
+        onOpenChange={(open) => !open && setPendingAction(null)}
+        title="Suspend this store?"
+        description={pendingAction?.kind === "suspend-reason" ? `Provide a reason for suspending "${pendingAction.store.name}".` : undefined}
+        label="Reason for suspending"
+        confirmLabel="Suspend"
+        destructive
+        loading={statusMutation.isPending}
+        onSubmit={(reason) => pendingAction?.kind === "suspend-reason" && statusMutation.mutate({ storeId: pendingAction.store.id, status: "SUSPENDED", reason })}
+      />
+
+      <PromptDialog
+        open={pendingAction?.kind === "impersonate-reason"}
+        onOpenChange={(open) => !open && setPendingAction(null)}
+        title="Impersonate this store's owner?"
+        description={pendingAction?.kind === "impersonate-reason" ? `Why are you impersonating the Store Owner of "${pendingAction.store.name}"?` : undefined}
+        label="Reason"
+        confirmLabel="Continue"
+        onSubmit={(reason) => pendingAction?.kind === "impersonate-reason" && setPendingAction({ kind: "impersonate-confirm", store: pendingAction.store, reason })}
+      />
+
+      <ConfirmDialog
+        open={pendingAction?.kind === "impersonate-confirm"}
+        onOpenChange={(open) => !open && setPendingAction(null)}
+        title="Confirm impersonation"
+        description={pendingAction?.kind === "impersonate-confirm" ? `You are about to act AS the Store Owner of "${pendingAction.store.name}". Continue?` : undefined}
+        confirmLabel="Start Session"
+        destructive
+        loading={impersonateMutation.isPending}
+        onConfirm={() => pendingAction?.kind === "impersonate-confirm" && impersonateMutation.mutate({ storeId: pendingAction.store.id, reason: pendingAction.reason })}
+      />
     </div>
   );
 }
@@ -202,51 +309,34 @@ function CreateStoreForm({ onCreated }: { onCreated: () => void }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mb-6 rounded-lg border border-border-default bg-surface-card p-5">
-      <h2 className="mb-4 text-sm font-semibold text-text-primary">Create a new store</h2>
-      <div className="grid grid-cols-2 gap-4">
-        <Field label="Store name" value={name} onChange={setName} required />
-        <Field label="Slug" value={slug} onChange={setSlug} required placeholder="acme-shop" />
-        <Field label="Owner name" value={ownerName} onChange={setOwnerName} required />
-        <Field label="Owner email" type="email" value={ownerEmail} onChange={setOwnerEmail} required />
-      </div>
-      {error && (
-        <p role="alert" className="mt-3 text-sm text-status-danger">
-          {error}
-        </p>
-      )}
-      {result && (
-        <p className="mt-3 rounded-md bg-primary-subtle p-3 text-xs text-text-primary">
-          Store created. Owner invite token (no email dispatch yet - relay manually):{" "}
-          <code className="break-all">{result.inviteToken}</code>
-        </p>
-      )}
-      <Button type="submit" variant="primary" loading={mutation.isPending} className="mt-4">
-        Create Store
-      </Button>
-    </form>
-  );
-}
-
-function Field(props: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  required?: boolean;
-  type?: string;
-  placeholder?: string;
-}) {
-  return (
-    <label className="block text-sm">
-      <span className="mb-1 block font-medium text-text-primary">{props.label}</span>
-      <input
-        type={props.type ?? "text"}
-        required={props.required}
-        placeholder={props.placeholder}
-        value={props.value}
-        onChange={(e) => props.onChange(e.target.value)}
-        className="w-full rounded-md border border-border-default px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
-      />
-    </label>
+    <Card className="animate-panel-in mb-6">
+      <CardHeader>
+        <CardTitle>Create a new store</CardTitle>
+      </CardHeader>
+      <CardBody>
+        <form onSubmit={handleSubmit}>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Input label="Store name" value={name} onChange={(e) => setName(e.target.value)} required />
+            <Input label="Slug" value={slug} onChange={(e) => setSlug(e.target.value)} required placeholder="acme-shop" />
+            <Input label="Owner name" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} required />
+            <Input label="Owner email" type="email" value={ownerEmail} onChange={(e) => setOwnerEmail(e.target.value)} required />
+          </div>
+          {error && (
+            <p role="alert" className="mt-3 rounded-lg bg-status-danger/10 px-3.5 py-2.5 text-sm text-status-danger">
+              {error}
+            </p>
+          )}
+          {result && (
+            <p className="mt-3 rounded-lg bg-primary-subtle p-3 text-xs text-text-primary">
+              Store created. Owner invite token (no email dispatch yet - relay manually):{" "}
+              <code className="break-all">{result.inviteToken}</code>
+            </p>
+          )}
+          <Button type="submit" variant="primary" loading={mutation.isPending} className="mt-4">
+            Create Store
+          </Button>
+        </form>
+      </CardBody>
+    </Card>
   );
 }

@@ -1,15 +1,22 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, StatusBadge } from "@commerceos/ui";
-import type { StatusTone } from "@commerceos/ui";
+import { Button } from "@commerceos/ui";
+import { ChevronLeft, MapPin, Phone, Truck, Wallet } from "lucide-react";
 import { confirmCod, getOrder, updateCourier, updateOrderStatus } from "../api/orders";
 import { useAuthStore } from "../stores/auth.store";
 import { RiskBadge } from "../components/RiskBadge";
 import { ApiError } from "../lib/api-client";
+import { toast } from "../components/ui/Toaster";
+import { Card, CardBody, CardHeader, CardTitle } from "../components/ui/Card";
+import { Badge } from "../components/ui/Badge";
+import type { BadgeTone } from "../components/ui/Badge";
+import { Select, Input } from "../components/ui/Input";
+import { Skeleton } from "../components/ui/Skeleton";
+import { ConfirmDialog, PromptDialog } from "../components/ui/ConfirmDialog";
 import type { CourierName, OrderStatus } from "../lib/api-types";
 
-const STATUS_TONE: Record<OrderStatus, StatusTone> = {
+const STATUS_TONE: Record<OrderStatus, BadgeTone> = {
   PENDING: "caution",
   CONFIRMED: "info",
   PROCESSING: "info",
@@ -53,14 +60,22 @@ function formatMoney(value: string): string {
   return `৳${Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+const PAYMENT_METHOD_LABEL: Record<string, string> = {
+  CASH_ON_DELIVERY: "Cash on Delivery",
+  MANUAL_BKASH_VERIFICATION: "bKash (Manual)",
+  AUTOMATED_GATEWAY: "Online Payment",
+};
+
+type PendingAction = { kind: "confirm"; target: OrderStatus } | { kind: "cancel-reason" } | { kind: "override-reason" } | null;
+
 export default function OrderDetailPage() {
   const { orderId = "" } = useParams();
   const navigate = useNavigate();
   const storeId = useAuthStore((s) => s.user?.storeId) as string;
   const queryClient = useQueryClient();
-  const [actionError, setActionError] = useState<string | null>(null);
   const [courierName, setCourierName] = useState<CourierName>("PATHAO");
   const [courierTrackingId, setCourierTrackingId] = useState("");
+  const [pendingAction, setPendingAction] = useState<PendingAction>(null);
 
   const orderQuery = useQuery({
     queryKey: ["order", storeId, orderId],
@@ -72,43 +87,52 @@ export default function OrderDetailPage() {
   const statusMutation = useMutation({
     mutationFn: (input: { status: OrderStatus; note?: string; codConfirmOverrideReason?: string }) =>
       updateOrderStatus(storeId, orderId, input),
-    onSuccess: invalidate,
-    onError: (err) => setActionError(err instanceof ApiError ? err.message : "Could not update order status"),
+    onSuccess: () => {
+      invalidate();
+      toast.success("Order status updated");
+      setPendingAction(null);
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Could not update order status"),
   });
 
   const codMutation = useMutation({
     mutationFn: (outcome: "CONFIRMED" | "NO_ANSWER" | "DECLINED") => confirmCod(storeId, orderId, { outcome }),
-    onSuccess: invalidate,
-    onError: (err) => setActionError(err instanceof ApiError ? err.message : "Could not log call outcome"),
+    onSuccess: () => {
+      invalidate();
+      toast.success("Call outcome logged");
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Could not log call outcome"),
   });
 
   const courierMutation = useMutation({
     mutationFn: () => updateCourier(storeId, orderId, { courierName, courierTrackingId }),
-    onSuccess: invalidate,
-    onError: (err) => setActionError(err instanceof ApiError ? err.message : "Could not save courier tracking"),
+    onSuccess: () => {
+      invalidate();
+      toast.success("Courier tracking saved");
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Could not save courier tracking"),
   });
 
   function handleTransition(target: OrderStatus) {
-    setActionError(null);
     if (target === "CANCELLED") {
-      const reason = window.prompt("Reason for cancelling this order?");
-      if (!reason) return;
-      statusMutation.mutate({ status: target, note: reason });
+      setPendingAction({ kind: "cancel-reason" });
       return;
     }
     if (target === "CONFIRMED" && !order?.codConfirmedByCall) {
-      const reason = window.prompt(
-        "This order hasn't been confirmed by a call yet. Enter an override reason to confirm anyway, or Cancel and log the call outcome below first.",
-      );
-      if (!reason) return;
-      statusMutation.mutate({ status: target, codConfirmOverrideReason: reason });
+      setPendingAction({ kind: "override-reason" });
       return;
     }
-    if (!window.confirm(`Move this order to ${STATUS_LABEL[target]}?`)) return;
-    statusMutation.mutate({ status: target });
+    setPendingAction({ kind: "confirm", target });
   }
 
-  if (orderQuery.isLoading) return <div className="text-text-secondary">Loading order…</div>;
+  if (orderQuery.isLoading) {
+    return (
+      <div className="max-w-4xl space-y-4">
+        <Skeleton className="h-6 w-32" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
   if (orderQuery.isError || !orderQuery.data) {
     return <div className="text-status-danger">Could not load this order.</div>;
   }
@@ -118,196 +142,235 @@ export default function OrderDetailPage() {
 
   return (
     <div className="max-w-4xl">
-      <button type="button" onClick={() => navigate("/orders")} className="mb-4 text-sm text-text-secondary hover:text-text-primary">
-        ← Back to Orders
+      <button type="button" onClick={() => navigate("/orders")} className="mb-4 inline-flex items-center gap-1 text-sm text-text-secondary transition-colors hover:text-text-primary">
+        <ChevronLeft size={16} aria-hidden="true" />
+        Back to Orders
       </button>
 
       {/* Customer + risk badge - per Part 22.14, the single most important
           piece of information on this screen, so it leads the page at full
           size rather than sitting in a side panel. */}
       <div className="mb-6 flex flex-wrap items-center gap-3">
-        <h1 className="text-xl font-semibold text-text-primary">{order.customer.name}</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-text-primary">{order.customer.name}</h1>
         <RiskBadge level={order.customer.riskLevel} />
-        <StatusBadge tone={STATUS_TONE[order.status]} label={STATUS_LABEL[order.status]} />
+        <Badge tone={STATUS_TONE[order.status]}>{STATUS_LABEL[order.status]}</Badge>
       </div>
-
-      {actionError && (
-        <p role="alert" className="mb-4 rounded-md bg-status-danger/10 px-3 py-2 text-sm text-status-danger">
-          {actionError}
-        </p>
-      )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
-          <section className="rounded-lg border border-border-default bg-surface-card p-5">
-            <h2 className="mb-3 text-sm font-semibold text-text-primary">Order Items</h2>
-            <table className="w-full text-left text-sm">
-              <thead className="text-xs uppercase tracking-wide text-text-secondary">
-                <tr>
-                  <th className="py-2">Product</th>
-                  <th className="py-2">Variant</th>
-                  <th className="py-2 text-right">Qty</th>
-                  <th className="py-2 text-right">Unit Price</th>
-                  <th className="py-2 text-right">Subtotal</th>
-                </tr>
-              </thead>
-              <tbody>
-                {order.items.map((item) => (
-                  <tr key={item.id} className="border-t border-border-default">
-                    <td className="py-2 text-text-primary">{item.product.name}</td>
-                    <td className="py-2 text-text-secondary">
-                      {Object.entries(item.variant.attributes)
-                        .map(([k, v]) => `${k}: ${v}`)
-                        .join(", ")}
-                    </td>
-                    <td className="py-2 text-right text-text-primary">{item.quantity}</td>
-                    <td className="py-2 text-right text-text-primary">{formatMoney(item.unitPrice)}</td>
-                    <td className="py-2 text-right text-text-primary">
-                      {formatMoney((Number(item.unitPrice) * item.quantity).toString())}
-                    </td>
+          <Card>
+            <CardHeader>
+              <CardTitle>Order Items</CardTitle>
+            </CardHeader>
+            <CardBody className="p-0">
+              <table className="w-full text-left text-sm">
+                <thead className="text-xs uppercase tracking-wide text-text-secondary">
+                  <tr>
+                    <th className="px-5 py-2.5">Product</th>
+                    <th className="px-5 py-2.5">Variant</th>
+                    <th className="px-5 py-2.5 text-right">Qty</th>
+                    <th className="px-5 py-2.5 text-right">Unit Price</th>
+                    <th className="px-5 py-2.5 text-right">Subtotal</th>
                   </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="border-t border-border-default font-semibold">
-                  <td colSpan={4} className="py-2 text-right text-text-primary">
-                    Total
-                  </td>
-                  <td className="py-2 text-right text-text-primary">{formatMoney(order.total)}</td>
-                </tr>
-              </tfoot>
-            </table>
-          </section>
+                </thead>
+                <tbody className="divide-y divide-border-default">
+                  {order.items.map((item) => (
+                    <tr key={item.id}>
+                      <td className="px-5 py-2.5 text-text-primary">{item.product.name}</td>
+                      <td className="px-5 py-2.5 text-text-secondary">
+                        {Object.entries(item.variant.attributes)
+                          .map(([k, v]) => `${k}: ${v}`)
+                          .join(", ") || "—"}
+                      </td>
+                      <td className="px-5 py-2.5 text-right text-text-primary">{item.quantity}</td>
+                      <td className="px-5 py-2.5 text-right text-text-primary">{formatMoney(item.unitPrice)}</td>
+                      <td className="px-5 py-2.5 text-right font-medium text-text-primary">
+                        {formatMoney((Number(item.unitPrice) * item.quantity).toString())}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t border-border-default font-semibold">
+                    <td colSpan={4} className="px-5 py-3 text-right text-text-primary">
+                      Total
+                    </td>
+                    <td className="px-5 py-3 text-right text-text-primary">{formatMoney(order.total)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </CardBody>
+          </Card>
 
-          <section className="rounded-lg border border-border-default bg-surface-card p-5">
-            <h2 className="mb-3 text-sm font-semibold text-text-primary">Delivery</h2>
-            <dl className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <dt className="text-text-secondary">Phone</dt>
-                <dd className="text-text-primary">{order.customer.phone}</dd>
+          <Card>
+            <CardHeader>
+              <CardTitle>Delivery</CardTitle>
+            </CardHeader>
+            <CardBody className="space-y-3 text-sm">
+              <div className="flex items-start justify-between gap-4">
+                <span className="flex items-center gap-2 text-text-secondary">
+                  <Phone size={14} aria-hidden="true" />
+                  Phone
+                </span>
+                <span className="text-right text-text-primary">{order.customer.phone}</span>
               </div>
-              <div className="flex justify-between gap-4">
-                <dt className="shrink-0 text-text-secondary">Address</dt>
-                <dd className="text-right text-text-primary">{order.deliveryAddress}</dd>
+              <div className="flex items-start justify-between gap-4">
+                <span className="flex shrink-0 items-center gap-2 text-text-secondary">
+                  <MapPin size={14} aria-hidden="true" />
+                  Address
+                </span>
+                <span className="text-right text-text-primary">{order.deliveryAddress}</span>
               </div>
-              <div className="flex justify-between">
-                <dt className="text-text-secondary">Payment Method</dt>
-                <dd className="text-text-primary">Cash on Delivery</dd>
+              <div className="flex items-start justify-between gap-4">
+                <span className="flex items-center gap-2 text-text-secondary">
+                  <Wallet size={14} aria-hidden="true" />
+                  Payment Method
+                </span>
+                <span className="text-text-primary">{PAYMENT_METHOD_LABEL[order.paymentMethod] ?? order.paymentMethod}</span>
               </div>
-            </dl>
-          </section>
+            </CardBody>
+          </Card>
 
-          {/* Per Part 9.4 - only meaningful once a courier is actually
-              involved; the backend rejects this before Shipped too. */}
           {["SHIPPED", "DELIVERED", "RETURNED"].includes(order.status) && (
-            <section className="rounded-lg border border-border-default bg-surface-card p-5">
-              <h2 className="mb-3 text-sm font-semibold text-text-primary">Courier Tracking</h2>
-              {order.courierTrackingId && (
-                <p className="mb-3 text-sm text-text-secondary">
-                  Currently: {COURIER_OPTIONS.find((c) => c.value === order.courierName)?.label ?? order.courierName} —{" "}
-                  <span className="font-mono">{order.courierTrackingId}</span>
-                </p>
-              )}
-              <div className="flex flex-wrap items-end gap-3">
-                <label className="block text-sm">
-                  <span className="mb-1 block text-xs font-medium text-text-primary">Courier</span>
-                  <select
-                    value={courierName}
-                    onChange={(e) => setCourierName(e.target.value as CourierName)}
-                    className="rounded-md border border-border-default px-3 py-2 text-sm"
-                  >
+            <Card>
+              <CardHeader>
+                <CardTitle>Courier Tracking</CardTitle>
+              </CardHeader>
+              <CardBody>
+                {order.courierTrackingId && (
+                  <p className="mb-3 flex items-center gap-2 text-sm text-text-secondary">
+                    <Truck size={14} aria-hidden="true" />
+                    Currently: {COURIER_OPTIONS.find((c) => c.value === order.courierName)?.label ?? order.courierName} —{" "}
+                    <span className="font-mono">{order.courierTrackingId}</span>
+                  </p>
+                )}
+                <div className="flex flex-wrap items-end gap-3">
+                  <Select label="Courier" value={courierName} onChange={(e) => setCourierName(e.target.value as CourierName)} className="w-40">
                     {COURIER_OPTIONS.map((c) => (
                       <option key={c.value} value={c.value}>
                         {c.label}
                       </option>
                     ))}
-                  </select>
-                </label>
-                <label className="block text-sm">
-                  <span className="mb-1 block text-xs font-medium text-text-primary">Tracking / Consignment ID</span>
-                  <input
-                    type="text"
+                  </Select>
+                  <Input
+                    label="Tracking / Consignment ID"
                     value={courierTrackingId}
                     onChange={(e) => setCourierTrackingId(e.target.value)}
                     placeholder={order.courierTrackingId ?? "e.g. PTH-123456"}
-                    className="rounded-md border border-border-default px-3 py-2 text-sm"
+                    className="w-48"
                   />
-                </label>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  loading={courierMutation.isPending}
-                  disabled={!courierTrackingId}
-                  onClick={() => courierMutation.mutate()}
-                >
-                  Save
-                </Button>
-              </div>
-            </section>
+                  <Button variant="secondary" size="sm" loading={courierMutation.isPending} disabled={!courierTrackingId} onClick={() => courierMutation.mutate()}>
+                    Save
+                  </Button>
+                </div>
+              </CardBody>
+            </Card>
           )}
         </div>
 
         <div className="space-y-6">
-          {/* Per Part 9.3 - the COD confirmation gate; only loggable while
-              Pending, since it exists to decide whether Pending -> Confirmed
-              should proceed. */}
           {order.status === "PENDING" && (
-            <section className="rounded-lg border border-border-default bg-surface-card p-5">
-              <h2 className="mb-1 text-sm font-semibold text-text-primary">COD Confirmation Call</h2>
-              <p className="mb-3 text-xs text-text-secondary">
-                {order.codConfirmedByCall
-                  ? "Confirmed by call."
-                  : `Not yet confirmed${order.callAttempts > 0 ? ` (${order.callAttempts} attempt${order.callAttempts === 1 ? "" : "s"})` : ""}.`}
-              </p>
-              <div className="flex flex-col gap-2">
-                <Button variant="secondary" size="sm" loading={codMutation.isPending} onClick={() => codMutation.mutate("CONFIRMED")}>
-                  Customer Confirmed
-                </Button>
-                <Button variant="ghost" size="sm" loading={codMutation.isPending} onClick={() => codMutation.mutate("NO_ANSWER")}>
-                  No Answer
-                </Button>
-                <Button variant="ghost" size="sm" loading={codMutation.isPending} onClick={() => codMutation.mutate("DECLINED")}>
-                  Declined
-                </Button>
-              </div>
-            </section>
+            <Card>
+              <CardHeader>
+                <CardTitle>COD Confirmation Call</CardTitle>
+              </CardHeader>
+              <CardBody>
+                <p className="mb-3 text-xs text-text-secondary">
+                  {order.codConfirmedByCall
+                    ? "Confirmed by call."
+                    : `Not yet confirmed${order.callAttempts > 0 ? ` (${order.callAttempts} attempt${order.callAttempts === 1 ? "" : "s"})` : ""}.`}
+                </p>
+                <div className="flex flex-col gap-2">
+                  <Button variant="secondary" size="sm" loading={codMutation.isPending} onClick={() => codMutation.mutate("CONFIRMED")}>
+                    Customer Confirmed
+                  </Button>
+                  <Button variant="ghost" size="sm" loading={codMutation.isPending} onClick={() => codMutation.mutate("NO_ANSWER")}>
+                    No Answer
+                  </Button>
+                  <Button variant="ghost" size="sm" loading={codMutation.isPending} onClick={() => codMutation.mutate("DECLINED")}>
+                    Declined
+                  </Button>
+                </div>
+              </CardBody>
+            </Card>
           )}
 
-          <section className="rounded-lg border border-border-default bg-surface-card p-5">
-            <h2 className="mb-3 text-sm font-semibold text-text-primary">Status</h2>
-            {nextStatuses.length === 0 ? (
-              <p className="text-sm text-text-secondary">This order is in a final state.</p>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {nextStatuses.map((target) => (
-                  <Button
-                    key={target}
-                    variant={target === "CANCELLED" || target === "RETURNED" ? "destructive" : "primary"}
-                    size="sm"
-                    loading={statusMutation.isPending}
-                    onClick={() => handleTransition(target)}
-                  >
-                    Mark as {STATUS_LABEL[target]}
-                  </Button>
-                ))}
-              </div>
-            )}
-          </section>
+          <Card>
+            <CardHeader>
+              <CardTitle>Status</CardTitle>
+            </CardHeader>
+            <CardBody>
+              {nextStatuses.length === 0 ? (
+                <p className="text-sm text-text-secondary">This order is in a final state.</p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {nextStatuses.map((target) => (
+                    <Button
+                      key={target}
+                      variant={target === "CANCELLED" || target === "RETURNED" ? "destructive" : "primary"}
+                      size="sm"
+                      loading={statusMutation.isPending}
+                      onClick={() => handleTransition(target)}
+                    >
+                      Mark as {STATUS_LABEL[target]}
+                    </Button>
+                  ))}
+                </div>
+              )}
+            </CardBody>
+          </Card>
 
-          <section className="rounded-lg border border-border-default bg-surface-card p-5">
-            <h2 className="mb-3 text-sm font-semibold text-text-primary">History</h2>
-            <ul className="space-y-2 text-xs">
-              {order.statusHistory.map((entry) => (
-                <li key={entry.id} className="border-l-2 border-border-default pl-3">
-                  <div className="font-medium text-text-primary">{STATUS_LABEL[entry.status]}</div>
-                  <div className="text-text-secondary">{new Date(entry.createdAt).toLocaleString()}</div>
-                  {entry.note && <div className="text-text-secondary">{entry.note}</div>}
-                </li>
-              ))}
-            </ul>
-          </section>
+          <Card>
+            <CardHeader>
+              <CardTitle>History</CardTitle>
+            </CardHeader>
+            <CardBody>
+              <ol className="space-y-3 text-xs">
+                {order.statusHistory.map((entry) => (
+                  <li key={entry.id} className="relative pl-4">
+                    <span className="absolute left-0 top-1 h-1.5 w-1.5 rounded-full bg-border-strong" aria-hidden="true" />
+                    <div className="font-medium text-text-primary">{STATUS_LABEL[entry.status]}</div>
+                    <div className="text-text-secondary">{new Date(entry.createdAt).toLocaleString()}</div>
+                    {entry.note && <div className="text-text-secondary">{entry.note}</div>}
+                  </li>
+                ))}
+              </ol>
+            </CardBody>
+          </Card>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={pendingAction?.kind === "confirm"}
+        onOpenChange={(open) => !open && setPendingAction(null)}
+        title={pendingAction?.kind === "confirm" ? `Move this order to ${STATUS_LABEL[pendingAction.target]}?` : ""}
+        destructive={pendingAction?.kind === "confirm" && (pendingAction.target === "CANCELLED" || pendingAction.target === "RETURNED")}
+        loading={statusMutation.isPending}
+        onConfirm={() => pendingAction?.kind === "confirm" && statusMutation.mutate({ status: pendingAction.target })}
+      />
+
+      <PromptDialog
+        open={pendingAction?.kind === "cancel-reason"}
+        onOpenChange={(open) => !open && setPendingAction(null)}
+        title="Cancel this order?"
+        description="This can't be undone. Please provide a reason."
+        label="Reason for cancelling"
+        confirmLabel="Cancel Order"
+        destructive
+        loading={statusMutation.isPending}
+        onSubmit={(reason) => statusMutation.mutate({ status: "CANCELLED", note: reason })}
+      />
+
+      <PromptDialog
+        open={pendingAction?.kind === "override-reason"}
+        onOpenChange={(open) => !open && setPendingAction(null)}
+        title="Confirm without a call?"
+        description="This order hasn't been confirmed by a call yet. Enter an override reason to confirm anyway, or close this and log the call outcome in the COD Confirmation Call panel first."
+        label="Override reason"
+        confirmLabel="Confirm Anyway"
+        loading={statusMutation.isPending}
+        onSubmit={(reason) => statusMutation.mutate({ status: "CONFIRMED", codConfirmOverrideReason: reason })}
+      />
     </div>
   );
 }

@@ -17,7 +17,11 @@ export interface AuthUser {
   storeId: string | null;
 }
 
-export type StoreStatus = "PENDING_SETUP" | "ACTIVE" | "SUSPENDED" | "ARCHIVED";
+// Renamed in place for the merchant verification/approval milestone
+// (PENDING_SETUP -> PENDING, ACTIVE -> APPROVED, REJECTED added).
+export type StoreStatus = "PENDING" | "APPROVED" | "SUSPENDED" | "REJECTED" | "ARCHIVED";
+
+export type VerificationStatus = "NOT_STARTED" | "IN_PROGRESS" | "SUBMITTED" | "UNDER_REVIEW" | "VERIFIED" | "REJECTED";
 
 export interface StoreDetail {
   id: string;
@@ -26,8 +30,13 @@ export interface StoreDetail {
   status: StoreStatus;
   suspendedAt: string | null;
   suspendedReason: string | null;
+  rejectedAt: string | null;
+  rejectedReason: string | null;
   createdAt: string;
   updatedAt: string;
+  // Minimal projection only - status/submittedAt, never NID/document
+  // fields (see api's getStoreById for why).
+  verification: { status: VerificationStatus; submittedAt: string | null } | null;
 }
 
 export interface AppErrorBody {
@@ -61,6 +70,9 @@ export interface CustomerSummary {
   name: string;
   phone: string;
   riskLevel: RiskLevel;
+  totalOrders: number;
+  deliveredOrders: number;
+  refusedOrders: number;
 }
 
 export interface CustomerOrderSummary {
@@ -106,6 +118,49 @@ export interface OrderStatusHistoryEntry {
   actorId: string | null;
   note: string | null;
   createdAt: string;
+}
+
+export type ProductStatus = "DRAFT" | "ACTIVE" | "ARCHIVED";
+
+export interface Category {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+export interface ProductVariant {
+  id: string;
+  productId: string;
+  sku: string;
+  attributes: Record<string, string>;
+  stock: number;
+  priceOverride: string | null;
+  isActive: boolean;
+}
+
+export interface ProductImage {
+  id: string;
+  productId: string;
+  url: string;
+  altText: string | null;
+  displayOrder: number;
+  createdAt: string;
+}
+
+export interface Product {
+  id: string;
+  storeId: string;
+  name: string;
+  description: string;
+  categoryId: string | null;
+  category: Category | null;
+  basePrice: string;
+  status: ProductStatus;
+  slug: string;
+  lowStockThreshold: number;
+  createdAt: string;
+  variants: ProductVariant[];
+  images: ProductImage[];
 }
 
 export interface OrderDetail {

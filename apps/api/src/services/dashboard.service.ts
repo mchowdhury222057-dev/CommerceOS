@@ -27,9 +27,10 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
     ]);
 
   const storesByStatus: Record<StoreStatus, number> = {
-    PENDING_SETUP: 0,
-    ACTIVE: 0,
+    PENDING: 0,
+    APPROVED: 0,
     SUSPENDED: 0,
+    REJECTED: 0,
     ARCHIVED: 0,
   };
   let totalStores = 0;

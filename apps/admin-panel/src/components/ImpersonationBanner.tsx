@@ -26,6 +26,9 @@ export function ImpersonationBanner() {
   return (
     <div
       role="status"
+      // text-slate-900 (fixed, not the theme-flipping text-primary token) -
+      // this banner's amber background never changes with dark mode, so
+      // its text can't either without breaking contrast.
       className="flex items-center justify-between gap-4 bg-amber-impersonation px-6 py-3 text-sm font-medium text-slate-900"
     >
       <span>

@@ -2,17 +2,125 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Design tokens - per SRS Addendum Part A.11 */
+/*
+  Design tokens for this app's redesign - deliberately its own scoped
+  palette (not an edit to packages/ui/tokens.ts, which admin-panel also
+  consumes), same technique already used for the Storefront's distinct
+  teal palette: CSS custom properties here, mapped through
+  tailwind.config.js's `rgb(var(--x) / <alpha-value>)` pattern so
+  opacity-modifier utilities (bg-primary/10, text-danger/60, ...) compile
+  correctly - Tailwind can't decompose an opaque var() into an alpha
+  channel at build time, so each variable must be an "R G B" triplet, not
+  a hex string.
+
+  Dark mode reuses the exact same class names (bg-surface-card,
+  text-text-primary, ...) - only the variable values change under
+  :root.dark. This is *why* dark mode is tractable across ~15 pages
+  without doubling every className with a dark: variant: components
+  never know which theme is active, they just reference the same
+  semantic token.
+*/
 :root {
-  --color-primary: #4F46E5;
-  --color-primary-hover: #4338CA;
-  --surface-page: #F8FAFC;
-  --surface-card: #FFFFFF;
-  --border-default: #E2E8F0;
-  --text-primary: #0F172A;
-  --text-secondary: #475569;
+  /* Tells the browser which palette to use for chrome it renders itself -
+     native date-picker icons, checkbox/radio ticks, select dropdown
+     panels, scrollbars - none of which are reachable via our own Tailwind
+     classes. Without this, that chrome stays light-styled even under
+     :root.dark, which is how a date input can end up with a black
+     calendar icon invisible against its own dark background. */
+  color-scheme: light;
+
+  --color-primary: 79 70 229; /* #4F46E5 */
+  --color-primary-hover: 67 56 202; /* #4338CA */
+  --color-primary-subtle: 238 242 255; /* #EEF2FF */
+
+  --color-success: 16 185 129; /* #10B981 emerald-500 */
+  --color-warning: 245 158 11; /* #F59E0B amber-500 */
+  --color-danger: 239 68 68; /* #EF4444 red-500 */
+  --color-info: 59 130 246; /* #3B82F6 blue-500 */
+  --color-neutral: 100 116 139; /* #64748B slate-500 */
+
+  --color-surface-page: 248 250 252; /* #F8FAFC */
+  --color-surface-card: 255 255 255; /* #FFFFFF */
+  --color-surface-sunken: 241 245 249; /* #F1F5F9 */
+  --color-sidebar: 255 255 255; /* white - distinguishes Store Dashboard from Admin Panel's dark navy */
+
+  --color-border-default: 229 231 235; /* #E5E7EB */
+  --color-border-strong: 209 213 219; /* #D1D5DB */
+
+  --color-text-primary: 17 24 39; /* #111827 */
+  --color-text-secondary: 107 114 128; /* #6B7280 */
+  --color-text-disabled: 156 163 175; /* #9CA3AF */
+
+  --shadow-card: 0 1px 2px rgba(17, 24, 39, 0.05), 0 1px 3px rgba(17, 24, 39, 0.06);
+  --shadow-card-hover: 0 4px 12px rgba(17, 24, 39, 0.08), 0 2px 4px rgba(17, 24, 39, 0.06);
+  --shadow-popover: 0 10px 32px rgba(17, 24, 39, 0.14), 0 2px 8px rgba(17, 24, 39, 0.08);
+}
+
+/* Brighter/lighter shades throughout - flat colors that worked on white
+   read as muddy or low-contrast on a near-black surface. */
+:root.dark {
+  color-scheme: dark;
+
+  --color-primary: 99 102 241; /* #6366F1 indigo-500 */
+  --color-primary-hover: 129 140 248; /* #818CF8 indigo-400 */
+  --color-primary-subtle: 30 27 75; /* #1E1B4B indigo-950 */
+
+  --color-success: 52 211 153; /* #34D399 emerald-400 */
+  --color-warning: 251 191 36; /* #FBBF24 amber-400 */
+  --color-danger: 248 113 113; /* #F87171 red-400 */
+  --color-info: 96 165 250; /* #60A5FA blue-400 */
+  --color-neutral: 148 163 184; /* #94A3B8 slate-400 */
+
+  --color-surface-page: 8 12 22; /* #080C16 */
+  --color-surface-card: 17 24 39; /* #111827 slate-900 */
+  --color-surface-sunken: 26 33 51; /* #1A2133 */
+  --color-sidebar: 17 24 39; /* #111827 - same elevation as cards in dark mode */
+
+  --color-border-default: 31 41 55; /* #1F2937 */
+  --color-border-strong: 55 65 81; /* #374151 */
+
+  --color-text-primary: 243 244 246; /* #F3F4F6 */
+  --color-text-secondary: 156 163 175; /* #9CA3AF */
+  --color-text-disabled: 100 116 139; /* #64748B */
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.35);
+  --shadow-card-hover: 0 4px 16px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --shadow-popover: 0 12px 36px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
 body {
-  @apply bg-surface-page text-text-primary font-sans;
+  @apply bg-surface-page text-text-primary font-sans antialiased transition-colors duration-150;
+}
+
+/* Subtle visual interest for the main content area's empty page space
+   only - every card/table/panel stays on a solid surface. Deliberately
+   no blur/glass. Applied once in Layout.tsx so it's consistent across
+   every page automatically. Opacity is intentionally lower in dark mode -
+   the same alpha value reads much louder against a near-black surface. */
+.dashboard-content-bg {
+  background-color: rgb(var(--color-surface-page));
+  background-image:
+    radial-gradient(circle at 1px 1px, rgb(var(--color-primary) / 0.07) 1px, transparent 0),
+    linear-gradient(180deg, rgb(var(--color-primary) / 0.04) 0%, rgb(var(--color-primary) / 0) 420px);
+  background-size: 24px 24px, 100% 100%;
+  background-repeat: repeat, no-repeat;
+}
+:root.dark .dashboard-content-bg {
+  background-image:
+    radial-gradient(circle at 1px 1px, rgb(var(--color-primary) / 0.14) 1px, transparent 0),
+    linear-gradient(180deg, rgb(var(--color-primary) / 0.08) 0%, rgb(var(--color-primary) / 0) 420px);
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-panel-in {
+  animation: panel-in 160ms ease-in-out;
 }

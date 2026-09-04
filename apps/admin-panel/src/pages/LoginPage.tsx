@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@commerceos/ui";
 import { login } from "../api/auth";
 import { ApiError } from "../lib/api-client";
@@ -57,7 +57,7 @@ export default function LoginPage() {
           autoComplete="username"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="mb-4 w-full rounded-md border border-border-default px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+          className="mb-4 w-full rounded-md border border-border-default bg-surface-card px-3 py-2 text-sm text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
         />
 
         <label htmlFor="password" className="mb-1 block text-sm font-medium text-text-primary">
@@ -70,8 +70,14 @@ export default function LoginPage() {
           autoComplete="current-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="mb-4 w-full rounded-md border border-border-default px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+          className="mb-4 w-full rounded-md border border-border-default bg-surface-card px-3 py-2 text-sm text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
         />
+
+        <div className="mb-4 text-right">
+          <Link to="/forgot-password" className="text-xs text-text-secondary hover:text-primary hover:underline">
+            Forgot password?
+          </Link>
+        </div>
 
         {error && (
           <p role="alert" className="mb-4 text-sm text-status-danger">
@@ -82,6 +88,12 @@ export default function LoginPage() {
         <Button type="submit" variant="primary" loading={submitting} className="w-full">
           Sign in
         </Button>
+
+        <p className="mt-4 text-center text-sm text-text-secondary">
+          <Link to="/admin-signup" className="font-medium text-primary hover:underline">
+            Create a Master Administrator account →
+          </Link>
+        </p>
       </form>
     </div>
   );
