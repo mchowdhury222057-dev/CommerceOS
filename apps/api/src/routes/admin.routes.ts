@@ -7,6 +7,7 @@ import { validateBody } from "../middleware/validate.js";
 import { approveStore, createStore, getStoreById, listStores, rejectStore, suspendStore } from "../services/store.service.js";
 import { getDashboardSummary } from "../services/dashboard.service.js";
 import { getVerificationDetail, listVerifications, markUnderReview } from "../services/verification.service.js";
+import { listStoreThemes } from "../services/theme.service.js";
 import { impersonationRouter } from "./impersonation.routes.js";
 import { themeRouter } from "./theme.routes.js";
 import type { StoreStatus, VerificationStatus } from "@commerceos/prisma/generated/client";
@@ -108,6 +109,19 @@ adminRouter.get(
     await markUnderReview(req.params.verificationId, getAuthUser(req));
     const verification = await getVerificationDetail(req.params.verificationId);
     res.json({ verification });
+  }),
+);
+
+// Per Theme Editor Section 3 - Theme Management's store list, one row per
+// store with its currently-relevant preset name and draft/published status.
+adminRouter.get(
+  "/themes",
+  asyncHandler(async (req, res) => {
+    const search = typeof req.query.search === "string" ? req.query.search : undefined;
+    const page = req.query.page ? Number(req.query.page) : undefined;
+    const pageSize = req.query.pageSize ? Number(req.query.pageSize) : undefined;
+    const result = await listStoreThemes({ search, page, pageSize });
+    res.json(result);
   }),
 );
 

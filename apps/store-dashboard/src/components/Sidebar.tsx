@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { logout } from "../api/auth";
 import { useAuthStore } from "../stores/auth.store";
+import { stopImpersonating } from "../lib/impersonation";
 import { Tooltip } from "./ui/Tooltip";
 import { cn } from "../lib/cn";
 
@@ -50,7 +51,16 @@ export function Sidebar({ collapsed = false, onNavigate, onToggleCollapsed }: Si
   const user = useAuthStore((s) => s.user);
   const clear = useAuthStore((s) => s.clear);
 
+  // Per Section 13 - while impersonating, "Logout" would otherwise strand
+  // the Admin on this app's own /login screen (they have no Store Owner
+  // credentials to sign back in with). Route them through the same
+  // end-session-and-return-to-Admin-Panel flow the banner's "Stop
+  // Impersonating" button uses instead.
   async function handleLogout() {
+    if (user?.impersonationSessionId) {
+      await stopImpersonating();
+      return;
+    }
     try {
       await logout();
     } finally {

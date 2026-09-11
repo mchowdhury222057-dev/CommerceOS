@@ -38,6 +38,12 @@ const STATUS_TONE: Record<StoreStatus, BadgeTone> = {
 
 const PAGE_SIZE = 15;
 
+// Same VITE_*_URL-with-localhost-fallback convention already used for the
+// Theme Editor's "preview live storefront" link (ThemeManagementPage.tsx) -
+// the Store Dashboard is a separate app/origin, so entering it after
+// Impersonate is a real browser navigation, not an in-app route change.
+const STORE_DASHBOARD_URL = (import.meta.env.VITE_STORE_DASHBOARD_URL as string | undefined) ?? "http://localhost:5174";
+
 // "approve" covers BOTH a brand-new PENDING application and a previously
 // SUSPENDED store - one button, one code path, per this milestone's
 // amendment. The backend's approveStore already merges these; this is
@@ -84,10 +90,15 @@ export default function StoreManagementPage() {
 
   const impersonateMutation = useMutation({
     mutationFn: ({ storeId, reason }: { storeId: string; reason: string }) => startImpersonation(storeId, reason),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["impersonation", "active"] });
-      toast.success("Impersonation session started");
-      setPendingAction(null);
+    // Starting the session is only half the job - the Admin actually has to
+    // END UP on the Store Owner dashboard. The Store Dashboard is a
+    // different app/origin, so this is a real page navigation carrying the
+    // impersonation token, not a client-side route change; that app's own
+    // boot sequence (main.tsx) picks the token up from the URL, adopts it
+    // as its session, and shows the Impersonation Banner from there.
+    onSuccess: (result) => {
+      toast.success("Impersonation session started - opening the Store Owner dashboard…");
+      window.location.href = `${STORE_DASHBOARD_URL}/?impersonate=${encodeURIComponent(result.impersonationToken)}`;
     },
     onError: (err) => toast.error(err instanceof ApiError ? err.message : "Could not start impersonation"),
   });

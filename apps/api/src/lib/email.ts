@@ -71,3 +71,27 @@ export async function sendEmail({ to, subject, html }: SendEmailInput): Promise<
   const previewUrl = nodemailer.getTestMessageUrl(info);
   logger.info({ msg: "Email sent", to, subject, previewUrl: previewUrl || undefined, messageId: info.messageId });
 }
+
+// Eagerly establishes (or auto-provisions) the transporter at server
+// startup instead of lazily on the first send, so a missing/broken SMTP
+// config - or the auto-provisioned Ethereal dev inbox's login - shows up
+// immediately in the boot log rather than silently, minutes later, inside
+// whichever request happens to trigger the first email. Never throws (a
+// broken dev email config must not crash the whole API); getTransporter()
+// itself already throws on its own in production if unconfigured.
+export async function verifyEmailConnection(): Promise<void> {
+  try {
+    const { from, isAutoProvisioned } = await getTransporter();
+    logger.info({
+      msg: isAutoProvisioned
+        ? "Email ready - auto-provisioned Ethereal dev inbox (see the account log line above to log in and view sent mail)"
+        : "Email ready - using configured SMTP",
+      from,
+    });
+  } catch (error) {
+    logger.error({
+      msg: "Email service configuration failed - verification/approval/rejection/suspension emails will not send until this is fixed. Check EMAIL_HOST, EMAIL_PORT, EMAIL_USER and EMAIL_PASSWORD.",
+      err: error,
+    });
+  }
+}
