@@ -7,6 +7,7 @@ import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import DashboardPage from "./pages/DashboardPage";
 import StoreManagementPage from "./pages/StoreManagementPage";
+import ThemeManagementPage from "./pages/ThemeManagementPage";
 import ThemeEditorPage from "./pages/ThemeEditorPage";
 import AuditLogPage from "./pages/AuditLogPage";
 import StoreActivityPage from "./pages/StoreActivityPage";
@@ -30,6 +31,7 @@ export const router = createBrowserRouter([
       { index: true, element: <Navigate to="/dashboard" replace /> },
       { path: "dashboard", element: <DashboardPage /> },
       { path: "stores", element: <StoreManagementPage /> },
+      { path: "themes", element: <ThemeManagementPage /> },
       { path: "stores/:storeId/theme", element: <ThemeEditorPage /> },
       { path: "stores/:storeId/activity", element: <StoreActivityPage /> },
       { path: "verifications", element: <VerificationCenterPage /> },

@@ -124,7 +124,8 @@ describe("audit coverage - Theme Editor (Part D.6/7.3)", () => {
 
 describe("audit coverage - Impersonation (Part 15.2)", () => {
   it("startImpersonation writes an ImpersonationSessionStarted audit entry", async () => {
-    mockPrisma.store.findUnique.mockResolvedValue({ id: "store-1" });
+    mockPrisma.store.findUnique.mockResolvedValue({ id: "store-1", status: "APPROVED" });
+    mockPrisma.user.findFirst.mockResolvedValue({ id: "owner-1", role: "STORE_OWNER", status: "ACTIVE" });
     mockPrisma.impersonationSession.create.mockResolvedValue({
       id: "sess-1",
       targetStoreId: "store-1",

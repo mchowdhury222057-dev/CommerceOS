@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Per Section 36 - the self-signup path must land a brand-new store in
-// PENDING (never auto-active) and kick off the verification-required email,
-// per Section 3. session.service.js/verification.service.js are mocked as
-// collaborators here (each has its own dedicated test coverage already);
-// this suite only asserts signup()'s own contract with them.
+// Per the "remove Store Owner email verification" milestone - the
+// self-signup path lands a brand-new store in PENDING (never auto-active)
+// and does NOT initiate any email verification (that step was removed
+// entirely). session.service.js is mocked as a collaborator (it has its
+// own dedicated test coverage already); this suite only asserts signup()'s
+// own contract.
 
 const mockWriteAuditLog = vi.fn().mockResolvedValue(undefined);
 vi.mock("../lib/audit.js", () => ({ writeAuditLog: mockWriteAuditLog }));
@@ -19,9 +20,6 @@ vi.mock("./session.service.js", () => ({
   revokeSession: vi.fn(),
   rotateSession: vi.fn(),
 }));
-
-const mockInitiateVerification = vi.fn().mockResolvedValue(undefined);
-vi.mock("./verification.service.js", () => ({ initiateVerification: mockInitiateVerification }));
 
 interface FakeTx {
   store: { create: ReturnType<typeof vi.fn> };
@@ -45,15 +43,17 @@ beforeEach(() => {
 });
 
 describe("signup", () => {
-  it("creates the store as PENDING (never auto-active) and kicks off verification", async () => {
+  it("creates the store as PENDING (never auto-active) and does not require email verification", async () => {
     mockTx.store.create.mockResolvedValue({ id: "store-1", name: "New Store", slug: "new-store" });
     mockTx.user.create.mockResolvedValue({ id: "owner-1", email: "owner@test.dev", role: "STORE_OWNER", storeId: "store-1" });
     mockTx.storefront.create.mockResolvedValue({ id: "sf-1" });
 
-    await signup({ storeName: "New Store", slug: "new-store", ownerName: "Owner", email: "owner@test.dev", phone: "+8801700000000", password: "TestPass123!" });
+    const result = await signup({ storeName: "New Store", slug: "new-store", ownerName: "Owner", email: "owner@test.dev", phone: "+8801700000000", password: "TestPass123!" });
 
     expect(mockTx.store.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "PENDING" }) }));
-    expect(mockInitiateVerification).toHaveBeenCalledWith("store-1", "owner-1", "owner@test.dev", "New Store");
+    // No verification row is created and no email provider is touched -
+    // signup succeeds purely from the DB transaction + session issuance.
+    expect(result.accessToken).toEqual(expect.any(String));
   });
 
   it("issues a real session so the owner is auto-logged-in straight to the Pending Approval screen", async () => {

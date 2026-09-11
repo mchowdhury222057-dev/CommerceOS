@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Per Section 36 - covers the token lifecycle (expiry/one-time-use/status
-// transitions), document submission, and the admin review handoff for the
-// merchant verification workflow. Mocks Prisma/audit/event-bus/Cloudinary/
-// email the same way audit-coverage.test.ts does, so this suite exercises
-// real service logic without touching a live DB, Redis, Cloudinary, or SMTP.
+// Per the "remove Store Owner email verification" milestone -
+// initiateVerification()/resendVerificationEmail() no longer exist (their
+// tests were removed with them, not left to bit-rot against a deleted
+// export). getVerificationByToken/submitVerification/markUnderReview/
+// listVerifications/getVerificationDetail are kept as-is (dormant but
+// intact - see verification.service.ts's own header comment), so their
+// tests are unchanged.
 
 const mockWriteAuditLog = vi.fn().mockResolvedValue(undefined);
 vi.mock("../lib/audit.js", () => ({ writeAuditLog: mockWriteAuditLog }));
@@ -19,16 +21,13 @@ vi.mock("../lib/cloudinary.js", () => ({
   getSignedDocumentUrl: mockGetSignedDocumentUrl,
 }));
 
-const mockSendVerificationRequiredEmail = vi.fn().mockResolvedValue(undefined);
 const mockSendAdminVerificationSubmittedEmail = vi.fn().mockResolvedValue(undefined);
 vi.mock("./email.service.js", () => ({
-  sendVerificationRequiredEmail: mockSendVerificationRequiredEmail,
   sendAdminVerificationSubmittedEmail: mockSendAdminVerificationSubmittedEmail,
 }));
 
 const mockPrisma = {
   verification: {
-    create: vi.fn(),
     findUnique: vi.fn(),
     update: vi.fn(),
     findMany: vi.fn(),
@@ -39,39 +38,14 @@ const mockPrisma = {
 };
 vi.mock("../lib/prisma.js", () => ({ prisma: mockPrisma }));
 
-const {
-  initiateVerification,
-  getVerificationByToken,
-  submitVerification,
-  markUnderReview,
-  listVerifications,
-  getVerificationDetail,
-} = await import("./verification.service.js");
+const { getVerificationByToken, submitVerification, markUnderReview, listVerifications, getVerificationDetail } = await import(
+  "./verification.service.js"
+);
 
 const masterAdmin = { id: "admin-1", email: "admin@platform.test", role: "MASTER_ADMIN" as const, storeId: null };
 
 beforeEach(() => {
   vi.clearAllMocks();
-});
-
-describe("initiateVerification", () => {
-  it("creates a NOT_STARTED Verification record and emails the owner", async () => {
-    mockPrisma.verification.create.mockResolvedValue({ id: "ver-1" });
-
-    await initiateVerification("store-1", "owner-1", "owner@store.test", "Test Store");
-
-    expect(mockPrisma.verification.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ storeId: "store-1", ownerId: "owner-1", status: "NOT_STARTED" }) }),
-    );
-    expect(mockSendVerificationRequiredEmail).toHaveBeenCalledWith("owner@store.test", "Test Store", expect.stringContaining("/store-verification/"));
-  });
-
-  it("does not throw when the email provider fails - signup must still succeed (Section 28)", async () => {
-    mockPrisma.verification.create.mockResolvedValue({ id: "ver-1" });
-    mockSendVerificationRequiredEmail.mockRejectedValueOnce(new Error("SMTP down"));
-
-    await expect(initiateVerification("store-1", "owner-1", "owner@store.test", "Test Store")).resolves.toBeUndefined();
-  });
 });
 
 describe("getVerificationByToken", () => {

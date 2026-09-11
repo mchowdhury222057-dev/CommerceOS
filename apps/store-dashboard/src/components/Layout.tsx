@@ -5,6 +5,7 @@ import { getMyStore } from "../api/store";
 import { useAuthStore } from "../stores/auth.store";
 import { Sidebar } from "./Sidebar";
 import { TopNav } from "./TopNav";
+import { ImpersonationBanner } from "./ImpersonationBanner";
 import { Drawer } from "./ui/Drawer";
 import type { Crumb } from "./ui/Breadcrumb";
 
@@ -79,6 +80,7 @@ export function Layout() {
       </Drawer>
 
       <div className="flex min-w-0 flex-1 flex-col">
+        <ImpersonationBanner store={storeQuery.data?.store} />
         <TopNav storeName={storeQuery.data?.store.name} breadcrumb={breadcrumbFor(location.pathname)} onOpenMobileMenu={() => setMobileOpen(true)} />
         <main className="dashboard-content-bg flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <Outlet context={storeQuery.data?.store} />

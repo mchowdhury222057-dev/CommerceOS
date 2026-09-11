@@ -12,6 +12,7 @@ import { errorHandler } from "./middleware/error-handler.js";
 import { requestLogger } from "./middleware/request-logger.js";
 import { logger } from "./lib/logger.js";
 import { registerNotificationSubscribers } from "./services/notification.service.js";
+import { verifyEmailConnection } from "./lib/email.js";
 
 const app = express();
 const PORT = process.env.PORT ?? 4000;
@@ -32,6 +33,11 @@ app.use(cookieParser());
 // Per Part M.3 - subscribers are wired once at process start; publishers
 // (the *.service.ts functions) never import a subscriber directly.
 registerNotificationSubscribers();
+
+// Fire-and-forget (not awaited) - checking this must not delay server
+// startup/tsx's dev-restart loop, it only needs to log clearly once
+// resolved. See lib/email.ts's verifyEmailConnection for what this reports.
+void verifyEmailConnection();
 
 app.use("/api", healthRouter);
 app.use("/api/auth", authRouter);
