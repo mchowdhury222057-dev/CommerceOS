@@ -20,7 +20,7 @@ const sizeClass: Record<ButtonSize, string> = {
 
 const variantClass: Record<ButtonVariant, string> = {
   primary: "bg-primary text-white hover:bg-primary-hover",
-  secondary: "bg-white text-text-primary border border-border-default hover:bg-surface-sunken",
+  secondary: "bg-surface-card text-text-primary border border-border-default hover:bg-surface-sunken",
   ghost: "bg-transparent text-text-primary hover:bg-surface-sunken",
   destructive: "bg-status-danger text-white hover:opacity-90",
   link: "bg-transparent text-primary underline-offset-2 hover:underline p-0 h-auto",

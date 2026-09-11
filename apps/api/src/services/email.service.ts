@@ -33,30 +33,6 @@ function button(label: string, href: string): string {
   return `<a href="${href}" style="display: inline-block; background-color: #4F46E5; color: #FFFFFF; text-decoration: none; font-size: 14px; font-weight: 600; padding: 12px 24px; border-radius: 8px; margin-top: 16px;">${label}</a>`;
 }
 
-// Section 8 - explains pending status, links to the secure verification
-// page only. No sensitive info requested via reply.
-export async function sendVerificationRequiredEmail(to: string, storeName: string, verificationLink: string): Promise<void> {
-  await sendEmail({
-    to,
-    subject: "CommerceOS — Complete Your Store Verification",
-    html: emailShell(`
-      <h1 style="font-size: 18px; color: #0F172A; margin: 0 0 12px;">Welcome to CommerceOS, ${storeName}!</h1>
-      <p style="font-size: 14px; color: #475569; line-height: 1.6; margin: 0 0 8px;">
-        Your store account has been created and is currently <strong>pending approval</strong>. Before a Master
-        Administrator can review your application, we need a few more details to verify your business.
-      </p>
-      <p style="font-size: 14px; color: #475569; line-height: 1.6; margin: 0 0 8px;">
-        Click below to complete your verification. This link is unique to you and expires soon, so please
-        complete it in one sitting.
-      </p>
-      ${button("Complete Verification", verificationLink)}
-      <p style="font-size: 12px; color: #94A3B8; margin-top: 20px;">
-        We will never ask you to reply to this email with sensitive information such as your NID number or documents.
-      </p>
-    `),
-  });
-}
-
 // Section 13 - to the Super Admin, no NID/document info in the body itself.
 export async function sendAdminVerificationSubmittedEmail(input: {
   storeName: string;

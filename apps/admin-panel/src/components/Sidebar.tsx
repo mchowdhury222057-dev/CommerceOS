@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { ChevronsLeft, ChevronsRight, LayoutDashboard, ListChecks, LogOut, ShieldCheck, Store, User } from "lucide-react";
+import { ChevronsLeft, ChevronsRight, LayoutDashboard, ListChecks, LogOut, Palette, ShieldCheck, Store, User } from "lucide-react";
 import { logout } from "../api/auth";
 import { useAuthStore } from "../stores/auth.store";
 import { Tooltip } from "./ui/Tooltip";
@@ -18,6 +18,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/stores", label: "Store Management", icon: Store },
+  { to: "/themes", label: "Themes", icon: Palette },
   { to: "/verifications", label: "Verification Center", icon: ShieldCheck },
   { to: "/audit-logs", label: "System Logs", icon: ListChecks },
   { to: "/profile", label: "Profile", icon: User },

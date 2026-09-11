@@ -1,4 +1,4 @@
-import { DEFAULT_STOREFRONT_LAYOUT, DEFAULT_THEME_SETTINGS } from "@commerceos/types";
+import { normalizeStorefrontLayout, normalizeThemeSettings } from "@commerceos/types";
 import { prisma } from "../lib/prisma.js";
 import { AppError } from "../lib/errors.js";
 
@@ -14,12 +14,16 @@ export async function resolveActiveStore(slug: string) {
   return store;
 }
 
-// Per Part 7.3/22.4 - pulls branding (colors/fonts/hero copy) from the
-// Theme Editor's PUBLISHED version if one exists; falls back to the same
-// defaults the Theme Editor itself seeds a brand-new draft with, so a store
-// that has never published a theme still gets a clean, valid look rather
-// than an empty/broken page. This is branding only, not the full
-// section/block layout renderer (Part 7.2, out of scope this round).
+// Per Part 7.3/22.4 - pulls the full theme (colors/fonts/layout controls)
+// and section-based layout from the Theme Editor's PUBLISHED version, the
+// one source of truth the public Storefront app renders from (Section 27 -
+// this is the whole point of the Theme Editor, not just an admin-side
+// preview). Falls back to the same defaults the Theme Editor itself seeds
+// a brand-new draft with (Section 29), so a store that has never published
+// a theme still renders a complete, attractive homepage rather than a
+// blank one. normalizeStorefrontLayout/normalizeThemeSettings coerce any
+// pre-Theme-Editor-milestone data into the current shape on the way out
+// (Section 24) - the public storefront never sees legacy JSON.
 export async function getPublicStoreInfo(slug: string) {
   const store = await resolveActiveStore(slug);
   const storefront = await prisma.storefront.findUnique({
@@ -31,8 +35,8 @@ export async function getPublicStoreInfo(slug: string) {
     id: store.id,
     name: store.name,
     slug: store.slug,
-    theme: storefront?.publishedVersion?.themeSettings ?? DEFAULT_THEME_SETTINGS,
-    layout: storefront?.publishedVersion?.layout ?? DEFAULT_STOREFRONT_LAYOUT,
+    theme: normalizeThemeSettings(storefront?.publishedVersion?.themeSettings),
+    layout: normalizeStorefrontLayout(storefront?.publishedVersion?.layout),
   };
 }
 

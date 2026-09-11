@@ -1,6 +1,8 @@
 import { Link, useParams } from "react-router-dom";
-import { ImageOff } from "lucide-react";
+import { ImageOff, Plus } from "lucide-react";
 import type { Product } from "../lib/api-types";
+import { useCart } from "../cart/CartContext";
+import { cn } from "../lib/cn";
 
 function formatMoney(value: number): string {
   return `৳${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -17,23 +19,63 @@ function priceDisplay(product: Product): string {
   return base;
 }
 
-export function ProductCard({ product }: { product: Product }) {
+const CARD_STYLE_CLASS: Record<"minimal" | "bordered" | "shadow", string> = {
+  minimal: "border-transparent hover:shadow-lg",
+  bordered: "border-border-default hover:border-primary/40 hover:shadow-lg",
+  shadow: "border-transparent shadow-md hover:shadow-2xl",
+};
+
+export interface ProductCardProps {
+  product: Product;
+  showPrice?: boolean;
+  showAddToCart?: boolean;
+  cardStyle?: "minimal" | "bordered" | "shadow";
+}
+
+export function ProductCard({ product, showPrice = true, showAddToCart = false, cardStyle = "bordered" }: ProductCardProps) {
   const { storeSlug } = useParams();
+  const cart = useCart();
   const totalStock = product.variants.reduce((sum, v) => sum + v.stock, 0);
   const imageUrl = product.images[0]?.url;
   const outOfStock = totalStock === 0;
+  // A grid card has no variant-picker UI (Section 33 rules out building
+  // one just for this) - quick add-to-cart only works for a single-variant
+  // product; anything else falls through to the product page, same
+  // destination the rest of the card already links to.
+  const singleVariant = product.variants.length === 1 ? product.variants[0] : null;
+
+  function handleQuickAdd(e: React.MouseEvent) {
+    if (!singleVariant || singleVariant.stock === 0) return;
+    e.preventDefault();
+    cart.addItem(
+      {
+        productId: product.id,
+        variantId: singleVariant.id,
+        productName: product.name,
+        imageUrl: imageUrl ?? null,
+        variantAttributes: singleVariant.attributes,
+        unitPrice: (singleVariant.priceOverride ?? product.basePrice).toString(),
+        stock: singleVariant.stock,
+      },
+      1,
+    );
+  }
 
   return (
     <Link
       to={`/${storeSlug}/products/${product.id}`}
-      className="group block overflow-hidden rounded-lg border border-border-default bg-surface-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg"
+      className={cn(
+        "group relative block overflow-hidden border bg-surface-card transition-all duration-300 ease-out hover:-translate-y-1",
+        CARD_STYLE_CLASS[cardStyle],
+      )}
+      style={{ borderRadius: "var(--radius-md)" }}
     >
       <div className="relative aspect-square overflow-hidden bg-surface-sunken">
         {imageUrl ? (
           <img
             src={imageUrl}
             alt={product.images[0]?.altText ?? product.name}
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+            className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-110"
           />
         ) : (
           <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-text-secondary">
@@ -46,10 +88,22 @@ export function ProductCard({ product }: { product: Product }) {
             <span className="rounded-full bg-text-primary px-3 py-1 text-xs font-semibold text-white">Out of Stock</span>
           </div>
         )}
+        {showAddToCart && !outOfStock && (
+          <button
+            type="button"
+            onClick={handleQuickAdd}
+            aria-label={`Add ${product.name} to cart`}
+            title={singleVariant ? "Add to cart" : "Choose options"}
+            className="absolute bottom-2.5 right-2.5 flex h-10 w-10 translate-y-1 items-center justify-center bg-primary text-white opacity-0 shadow-lg shadow-black/20 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100 hover:bg-primary-hover"
+            style={{ borderRadius: "var(--theme-button-radius)" }}
+          >
+            <Plus size={16} aria-hidden="true" />
+          </button>
+        )}
       </div>
-      <div className="p-3.5">
-        <h3 className="truncate text-sm font-medium text-text-primary group-hover:text-primary">{product.name}</h3>
-        <p className="mt-1 text-base font-bold text-text-primary">{priceDisplay(product)}</p>
+      <div className="p-4">
+        <h3 className="truncate text-sm font-medium text-text-primary transition-colors group-hover:text-primary">{product.name}</h3>
+        {showPrice && <p className="mt-1.5 text-base font-bold tracking-tight text-text-primary">{priceDisplay(product)}</p>}
       </div>
     </Link>
   );

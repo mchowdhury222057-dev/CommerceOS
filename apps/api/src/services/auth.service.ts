@@ -9,7 +9,6 @@ import { emit } from "../events/bus.js";
 import { writeAuditLog } from "../lib/audit.js";
 import { sendPasswordResetLink } from "../lib/mailer.js";
 import { createSession, revokeAllSessionsForUser, revokeSession, rotateSession, type CreatedSession } from "./session.service.js";
-import { initiateVerification } from "./verification.service.js";
 
 // Per Part 19.4 - short-lived (self-contained) access token, paired with a
 // Redis-backed, rotate-on-use refresh token (Part D.1.4/session.service.ts).
@@ -101,19 +100,18 @@ export interface SignupInput {
   password: string;
 }
 
-// Per Part 6.1 and this milestone's merchant verification workflow - the
-// self-signup path: a prospective Store Owner creates their own account
-// and their Store's shell in one step, landing in PENDING (Part 6.2)
-// until a Master Administrator approves it via the same Approve action
-// already built in apps/admin-panel - now gated on completing the
-// verification form first (Section 2's full flow), not just an admin's
-// say-so. Unlike the Master Admin's "+ Create Store" path
-// (store.service.ts's createStore, where the owner starts Invited pending
-// an invite-token redemption), the owner here sets their own password
-// directly, so their account is Active immediately - only the STORE
-// itself is gated on approval, not their ability to log in and see their
-// own pending-approval screen (enforced by StoreAccessGate client-side
-// and requireApprovedStore server-side).
+// Per Part 6.1 - the self-signup path: a prospective Store Owner creates
+// their own account and their Store's shell in one step, landing in
+// PENDING (Part 6.2) until a Master Administrator approves it directly via
+// the existing Approve action in apps/admin-panel - no email-verification
+// step in between (that requirement was dropped; see the removed
+// verification.service.ts call this comment used to describe). Unlike the
+// Master Admin's "+ Create Store" path (store.service.ts's createStore,
+// where the owner starts Invited pending an invite-token redemption), the
+// owner here sets their own password directly, so their account is Active
+// immediately - only the STORE itself is gated on approval, not their
+// ability to log in and see their own pending-approval screen (enforced
+// by StoreAccessGate client-side and requireApprovedStore server-side).
 export async function signup(input: SignupInput): Promise<AuthResult> {
   assertPasswordPolicy(input.password);
   const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
@@ -178,13 +176,6 @@ export async function signup(input: SignupInput): Promise<AuthResult> {
     actorId: created.userId,
     payload: { storeId: created.storeId, ownerUserId: created.userId, storeName: created.storeName, slug: created.slug },
   });
-
-  // Section 3 - issues the verification link and emails it. Deliberately
-  // outside the transaction (it's an external network call, not a DB
-  // write) - a slow/failed email provider must never roll back a
-  // successful signup; initiateVerification itself already logs rather
-  // than throws if the send fails (Section 28).
-  await initiateVerification(created.storeId, created.userId, created.userEmail, created.storeName);
 
   const user: AuthUser = { id: created.userId, email: created.userEmail, role: created.role, storeId: created.storeIdForUser };
   return issueAuthResult(user);
