@@ -5,6 +5,7 @@ import { Bell, Menu, Plus, Search, Settings, User as UserIcon, LogOut } from "lu
 import { Button } from "@commerceos/ui";
 import { logout } from "../api/auth";
 import { useAuthStore } from "../stores/auth.store";
+import { stopImpersonating } from "../lib/impersonation";
 import { Avatar } from "./ui/Avatar";
 import { Breadcrumb } from "./ui/Breadcrumb";
 import type { Crumb } from "./ui/Breadcrumb";
@@ -24,7 +25,14 @@ export function TopNav({ storeName, breadcrumb, onOpenMobileMenu }: TopNavProps)
   const clear = useAuthStore((s) => s.clear);
   const [search, setSearch] = useState("");
 
+  // Per Section 13 - same reasoning as Sidebar.tsx's own Logout handler: a
+  // normal logout while impersonating would strand the Admin on this app's
+  // own /login screen instead of returning them to the Admin Panel.
   async function handleLogout() {
+    if (user?.impersonationSessionId) {
+      await stopImpersonating();
+      return;
+    }
     try {
       await logout();
     } finally {

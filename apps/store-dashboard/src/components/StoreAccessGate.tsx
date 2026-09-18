@@ -35,7 +35,7 @@ export function StoreAccessGate() {
 
   const { store } = storeQuery.data;
 
-  if (store.status === "PENDING") return <PendingApprovalPage verificationStatus={store.verification?.status} />;
+  if (store.status === "PENDING") return <PendingApprovalPage />;
   if (store.status === "REJECTED") return <RejectedPage reason={store.rejectedReason} />;
   if (store.status === "SUSPENDED") return <SuspendedPage reason={store.suspendedReason} />;
   if (store.status === "ARCHIVED") return <SuspendedPage reason="This store has been archived." />;

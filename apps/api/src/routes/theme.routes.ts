@@ -10,6 +10,7 @@ import {
   restoreThemeVersion,
   updateDraftTheme,
 } from "../services/theme.service.js";
+import { listProducts } from "../services/product.service.js";
 
 // Per SRS Part 7.3/B.3.4 - the Master Admin's own Storefront Builder tool.
 // This is NOT gated by impersonation (Part B.3.4: "full access on any
@@ -58,5 +59,19 @@ themeRouter.post(
   asyncHandler(async (req, res) => {
     const draft = await restoreThemeVersion(req.params.storeId, req.params.versionId, getAuthUser(req).id);
     res.status(201).json({ draft });
+  }),
+);
+
+// Per Section 13/20 - the editor's live preview needs real product data
+// ("Do NOT create duplicate products for themes"), but a Master Admin has
+// no direct product-list access outside impersonation (requireStoreAccess
+// blocks it) - this small read-only endpoint is the one exception, scoped
+// to what the preview needs (active products only), reusing the exact
+// same product.service.ts query the Store Owner's own product list uses.
+themeRouter.get(
+  "/preview-products",
+  asyncHandler(async (req, res) => {
+    const result = await listProducts(req.params.storeId, { status: ["ACTIVE"], pageSize: 24 });
+    res.json({ products: result.products });
   }),
 );

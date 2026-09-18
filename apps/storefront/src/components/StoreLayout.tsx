@@ -1,9 +1,12 @@
+import { useEffect } from "react";
 import { Outlet, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { getStoreInfo } from "../api/storefront";
 import { CartProvider } from "../cart/CartContext";
+import { applyThemeToDocument } from "../lib/theme";
 import { Nav } from "./Nav";
 import { Footer } from "./Footer";
+import { AnnouncementBar } from "./sections/AnnouncementBar";
 
 // Per Part 6.3 - resolves the store from :storeSlug once, at the top of the
 // route tree, and wraps every child page in a CartProvider scoped to that
@@ -11,21 +14,30 @@ import { Footer } from "./Footer";
 // "not found" state (see storefront.service.ts's resolveActiveStore) -
 // this app never distinguishes those two cases for a visitor.
 //
-// Colors/fonts come entirely from the storefront's own default design
-// tokens (src/index.css) this round, not from store.theme.* - per the
-// milestone scope, pulling live per-store branding is a later pass. The
-// store's `theme` object is still fetched and available on `store` (passed
-// via Outlet context) for whenever that integration lands.
+// Per the Theme Editor milestone (Sections 7/8/27) - the store's full theme
+// is applied here, once, at the top of the route tree, via CSS custom
+// property overrides (lib/theme.ts) - every page/component underneath
+// picks it up automatically through the same Tailwind tokens they already
+// used, no per-component changes needed. The Announcement Bar renders here
+// too (site-wide chrome, like the header/footer, not a per-page section).
 export function StoreLayout() {
   const { storeSlug = "" } = useParams();
   const storeQuery = useQuery({ queryKey: ["store", storeSlug], queryFn: () => getStoreInfo(storeSlug) });
 
+  useEffect(() => {
+    if (storeQuery.data) applyThemeToDocument(storeQuery.data.theme);
+  }, [storeQuery.data]);
+
   if (storeQuery.isLoading) {
-    return <div className="flex min-h-screen items-center justify-center text-text-secondary">Loading…</div>;
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-surface-page">
+        <div className="h-9 w-9 animate-spin rounded-full border-2 border-border-default border-t-primary" aria-label="Loading" />
+      </div>
+    );
   }
   if (storeQuery.isError || !storeQuery.data) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center text-center">
+      <div className="flex min-h-screen flex-col items-center justify-center bg-surface-page px-4 text-center">
         <h1 className="mb-2 text-lg font-semibold text-text-primary">Store Unavailable</h1>
         <p className="text-sm text-text-secondary">This store is currently unavailable.</p>
       </div>
@@ -37,11 +49,12 @@ export function StoreLayout() {
   return (
     <CartProvider storeSlug={storeSlug}>
       <div className="flex min-h-screen flex-col bg-surface-page">
-        <Nav storeName={store.name} logoUrl={store.theme.logoUrl} />
+        <AnnouncementBar settings={store.layout.announcementBar} />
+        <Nav storeName={store.name} logoUrl={store.theme.logoUrl} showSearch={store.layout.header.showSearch} />
         <div className="flex-1">
           <Outlet context={store} />
         </div>
-        <Footer storeName={store.name} />
+        <Footer storeName={store.name} settings={store.layout.footer} />
       </div>
     </CartProvider>
   );

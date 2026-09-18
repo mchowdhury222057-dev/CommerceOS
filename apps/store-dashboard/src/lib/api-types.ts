@@ -15,6 +15,11 @@ export interface AuthUser {
   email: string;
   role: Role;
   storeId: string | null;
+  // Present only on a Master Admin's impersonation token (Part 15.2) - its
+  // presence is what ProtectedRoute checks to let a MASTER_ADMIN identity
+  // into this app at all, instead of bouncing it to /login like any other
+  // non-store-scoped role.
+  impersonationSessionId?: string;
 }
 
 // Renamed in place for the merchant verification/approval milestone
@@ -37,6 +42,10 @@ export interface StoreDetail {
   // Minimal projection only - status/submittedAt, never NID/document
   // fields (see api's getStoreById for why).
   verification: { status: VerificationStatus; submittedAt: string | null } | null;
+  // Used by the Impersonation Banner ("Impersonating: owner@store.com") -
+  // the impersonation JWT's own `email` claim is the Master Admin's, not
+  // the Store Owner's.
+  owner: { name: string; email: string } | null;
 }
 
 export interface AppErrorBody {
