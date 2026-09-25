@@ -67,23 +67,120 @@ export interface AdminVerificationDetail {
 
 export type StorefrontVersionStatus = "DRAFT" | "PUBLISHED" | "OBSOLETE";
 
-export interface SimplifiedLayout {
-  heroHeading: string;
-  heroSubheading: string;
-  heroImageUrl: string | null;
-  showFeaturedProducts: boolean;
-}
+export type ButtonStyle = "rounded" | "square" | "pill";
+export type SectionSpacing = "compact" | "comfortable" | "spacious";
+export type ProductCardStyle = "minimal" | "bordered" | "shadow";
 
 export interface ThemeSettings {
+  preset: string;
   colorPrimary: string;
   colorSecondary: string;
   colorAccent: string;
   colorBackground: string;
+  colorSurface: string;
+  colorText: string;
+  colorTextMuted: string;
   fontHeading: string;
   fontBody: string;
   logoUrl: string | null;
   faviconUrl: string | null;
   cornerRadius: number;
+  buttonStyle: ButtonStyle;
+  containerWidth: number;
+  sectionSpacing: SectionSpacing;
+  productCardStyle: ProductCardStyle;
+}
+
+export type ThemeSectionType =
+  | "hero"
+  | "featured-categories"
+  | "featured-products"
+  | "product-grid"
+  | "promo-banner"
+  | "trust"
+  | "newsletter";
+
+export interface ThemeSection {
+  id: string;
+  type: ThemeSectionType;
+  enabled: boolean;
+  settings: Record<string, unknown>;
+}
+
+export interface HeroSectionSettings {
+  heading: string;
+  subheading: string;
+  imageUrl: string | null;
+  buttonText: string;
+  buttonLink: string;
+  alignment: "left" | "center" | "right";
+  overlay: boolean;
+  height: "small" | "medium" | "large";
+}
+
+export interface FeaturedCategoriesSectionSettings {
+  title: string;
+  limit: number;
+}
+
+export interface FeaturedProductsSectionSettings {
+  title: string;
+  limit: number;
+  columns: 2 | 3 | 4;
+  showPrice: boolean;
+  showAddToCart: boolean;
+}
+
+export interface ProductGridSectionSettings {
+  title: string;
+  columns: 2 | 3 | 4;
+  showPrice: boolean;
+  showAddToCart: boolean;
+}
+
+export interface PromoBannerSectionSettings {
+  heading: string;
+  description: string;
+  imageUrl: string | null;
+  buttonText: string;
+  buttonLink: string;
+  alignment: "left" | "center" | "right";
+}
+
+export interface TrustSectionSettings {
+  title: string;
+  items: Array<{ text: string }>;
+}
+
+export interface NewsletterSectionSettings {
+  heading: string;
+  subheading: string;
+}
+
+export interface AnnouncementBarSettings {
+  enabled: boolean;
+  text: string;
+  backgroundColor: string;
+  textColor: string;
+  link: string | null;
+  linkText: string | null;
+}
+
+export interface HeaderSettings {
+  showSearch: boolean;
+}
+
+export interface FooterSettings {
+  description: string;
+  contactEmail: string;
+  showSocialLinks: boolean;
+}
+
+export interface SimplifiedLayout {
+  announcementBar: AnnouncementBarSettings;
+  header: HeaderSettings;
+  sections: ThemeSection[];
+  footer: FooterSettings;
 }
 
 export interface StorefrontVersion {
@@ -96,6 +193,28 @@ export interface StorefrontVersion {
   createdById: string;
   publishedAt: string | null;
   createdAt: string;
+}
+
+export type StoreThemeStatus = "PUBLISHED" | "DRAFT_ONLY" | "DEFAULT";
+
+export interface StoreThemeSummary {
+  storeId: string;
+  storeName: string;
+  storeSlug: string;
+  presetName: string;
+  status: StoreThemeStatus;
+}
+
+// Minimal mirror of apps/api's Product shape - only what the Theme
+// Editor's live preview needs (Section 20), not a full product-management
+// type (admin-panel doesn't manage products directly - Section 14/27).
+export interface PreviewProduct {
+  id: string;
+  name: string;
+  basePrice: string;
+  images: Array<{ url: string; altText: string | null }>;
+  variants: Array<{ id: string; stock: number; priceOverride: string | null }>;
+  category: { id: string; name: string } | null;
 }
 
 export interface ImpersonationSession {
@@ -147,4 +266,59 @@ export interface DashboardSummary {
   totalPlatformOrders: number;
   totalStoreOwners: number;
   recentImpersonationSessionCount: number;
+}
+
+export type RevenueRangeDays = 7 | 30 | 90 | 365;
+
+export interface PlatformRevenue {
+  rangeDays: RevenueRangeDays;
+  totalRevenue: string;
+  revenueToday: string;
+  revenueThisMonth: string;
+  revenueThisYear: string;
+  revenueTrend: Array<{ date: string; revenue: string }>;
+  revenueByStore: Array<{ storeId: string; storeName: string; orders: number; revenue: string }>;
+}
+
+export interface StoreGrowth {
+  totalStores: number;
+  newStoresThisWeek: number;
+  newStoresThisMonth: number;
+  newStoresThisYear: number;
+  growthTrend: Array<{ month: string; totalStores: number }>;
+}
+
+export type ServiceStatus = "operational" | "warning" | "error";
+
+export interface ServiceHealthCheck {
+  name: string;
+  status: ServiceStatus;
+  detail?: string;
+}
+
+export interface SystemHealth {
+  status: ServiceStatus;
+  checkedAt: string;
+  environment: string;
+  uptimeSeconds: number;
+  services: ServiceHealthCheck[];
+  recentErrors: Array<{ id: string; eventName: string; errorMessage: string; attemptCount: number; lastAttemptAt: string }>;
+  failedEventCount: number;
+}
+
+export interface PlatformSettings {
+  platformName: string;
+  platformLogoUrl: string | null;
+  platformDescription: string | null;
+  maintenanceMode: boolean;
+  maintenanceMessage: string | null;
+  updatedAt: string;
+}
+
+export interface UpdatePlatformSettingsInput {
+  platformName?: string;
+  platformLogoUrl?: string | null;
+  platformDescription?: string | null;
+  maintenanceMode?: boolean;
+  maintenanceMessage?: string | null;
 }

@@ -72,6 +72,8 @@ vi.mock("../middleware/rate-limit.js", () => ({
   inviteRedeemRateLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
   passwordResetRateLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
   signupRateLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
+  customerLoginRateLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
+  customerSignupRateLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 
 vi.mock("../middleware/error-handler.js", () => ({

@@ -1,6 +1,8 @@
 import { NavLink } from "react-router-dom";
-import { ChevronsLeft, ChevronsRight, LayoutDashboard, ListChecks, LogOut, ShieldCheck, Store, User } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Activity, ChevronsLeft, ChevronsRight, LayoutDashboard, ListChecks, LogOut, Palette, Settings, ShieldCheck, Store, User } from "lucide-react";
 import { logout } from "../api/auth";
+import { getPlatformSettings } from "../api/settings";
 import { useAuthStore } from "../stores/auth.store";
 import { Tooltip } from "./ui/Tooltip";
 import { cn } from "../lib/cn";
@@ -12,14 +14,20 @@ interface NavItem {
   end?: boolean;
 }
 
-// Only pages that actually exist and are wired up this round - no
-// Platform Settings entry, since there are currently zero real backend
-// fields to show there (see the redesign's findings).
+// Platform Settings now has real backend fields (PlatformSettings model),
+// so it's back in the nav. Notifications/Users & Roles are still absent -
+// no backend exists for either yet (see TopNav.tsx's own note on
+// Notifications), and building them is out of this milestone's scope.
+// Analytics isn't a separate item either - Platform Revenue/Store Growth
+// are integrated into the existing Dashboard page, not a new route.
 const NAV_ITEMS: NavItem[] = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/stores", label: "Store Management", icon: Store },
+  { to: "/themes", label: "Themes", icon: Palette },
   { to: "/verifications", label: "Verification Center", icon: ShieldCheck },
   { to: "/audit-logs", label: "System Logs", icon: ListChecks },
+  { to: "/system-health", label: "System Health", icon: Activity },
+  { to: "/settings", label: "Settings", icon: Settings },
   { to: "/profile", label: "Profile", icon: User },
 ];
 
@@ -38,6 +46,10 @@ export interface SidebarProps {
 export function Sidebar({ collapsed = false, onNavigate, onToggleCollapsed }: SidebarProps) {
   const user = useAuthStore((s) => s.user);
   const clear = useAuthStore((s) => s.clear);
+  // Real usage of PlatformSettings.platformName, not just a stored-but-
+  // unread field - staleTime keeps this from refetching on every nav.
+  const settingsQuery = useQuery({ queryKey: ["platform-settings"], queryFn: getPlatformSettings, staleTime: 60_000 });
+  const platformName = settingsQuery.data?.platformName ?? "CommerceOS";
 
   async function handleLogout() {
     try {
@@ -53,7 +65,7 @@ export function Sidebar({ collapsed = false, onNavigate, onToggleCollapsed }: Si
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-sm font-bold text-white">C</span>
         {!collapsed && (
           <div className="min-w-0">
-            <div className="truncate text-sm font-bold tracking-tight">CommerceOS</div>
+            <div className="truncate text-sm font-bold tracking-tight">{platformName}</div>
             <div className="truncate text-xs text-white/60">Super Admin Panel</div>
           </div>
         )}

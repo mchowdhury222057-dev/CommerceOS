@@ -108,3 +108,97 @@ export async function getStoreDashboardSummary(storeId: string): Promise<StoreDa
     })),
   };
 }
+
+export const ANALYTICS_RANGE_DAYS = [7, 30, 90] as const;
+export type AnalyticsRangeDays = (typeof ANALYTICS_RANGE_DAYS)[number];
+
+export interface StoreAnalytics {
+  rangeDays: AnalyticsRangeDays;
+  totalRevenue: string;
+  totalOrders: number;
+  averageOrderValue: string;
+  newCustomers: number;
+  revenueTrend: Array<{ date: string; revenue: string }>;
+  ordersByStatus: Array<{ status: string; count: number }>;
+  topProducts: Array<{ productId: string; name: string; unitsSold: number; revenue: string }>;
+}
+
+// Deeper Store Owner analytics beyond the Dashboard's own 14-day
+// order-count trend (Part 18.1) - real revenue/product/status aggregates
+// over a selectable window, all direct Prisma queries scoped to this
+// store like every other aggregate in this file (no new materialized
+// snapshot; data volume doesn't justify one, same reasoning as
+// getStoreDashboardSummary above). isPaid is used for revenue the same
+// way revenueThisMonth already does, so the two pages never disagree on
+// what counts as "revenue".
+export async function getStoreAnalytics(storeId: string, rangeDays: AnalyticsRangeDays): Promise<StoreAnalytics> {
+  const today = startOfDay(new Date());
+  const rangeStart = new Date(today);
+  rangeStart.setDate(rangeStart.getDate() - (rangeDays - 1));
+
+  const [orders, orderItems, newCustomers] = await Promise.all([
+    prisma.order.findMany({
+      where: { storeId, createdAt: { gte: rangeStart } },
+      select: { status: true, total: true, isPaid: true, createdAt: true },
+    }),
+    // isPaid: true here too - otherwise a product's "revenue" in the Top
+    // Products list could exceed the page's own Total Revenue KPI (caught
+    // in testing: an unpaid/undelivered order's items were inflating a
+    // product's ranking with revenue that was never actually realized).
+    prisma.orderItem.findMany({
+      where: { order: { storeId, createdAt: { gte: rangeStart }, isPaid: true } },
+      select: { quantity: true, unitPrice: true, product: { select: { id: true, name: true } } },
+    }),
+    prisma.customer.count({ where: { storeId, createdAt: { gte: rangeStart } } }),
+  ]);
+
+  const paidOrders = orders.filter((o) => o.isPaid);
+  const totalRevenue = paidOrders.reduce((sum, o) => sum.add(o.total), new Prisma.Decimal(0));
+  const totalOrders = orders.length;
+  const averageOrderValue = totalOrders === 0 ? new Prisma.Decimal(0) : totalRevenue.div(totalOrders);
+
+  const revenueBuckets = new Map<string, Prisma.Decimal>();
+  for (let i = 0; i < rangeDays; i++) {
+    const d = new Date(rangeStart);
+    d.setDate(d.getDate() + i);
+    revenueBuckets.set(dateKey(d), new Prisma.Decimal(0));
+  }
+  for (const order of paidOrders) {
+    const key = dateKey(order.createdAt);
+    revenueBuckets.set(key, (revenueBuckets.get(key) ?? new Prisma.Decimal(0)).add(order.total));
+  }
+  const revenueTrend = Array.from(revenueBuckets.entries()).map(([date, revenue]) => ({ date, revenue: revenue.toString() }));
+
+  const statusCounts = new Map<string, number>();
+  for (const order of orders) {
+    statusCounts.set(order.status, (statusCounts.get(order.status) ?? 0) + 1);
+  }
+  const ordersByStatus = Array.from(statusCounts.entries()).map(([status, count]) => ({ status, count }));
+
+  const productTotals = new Map<string, { productId: string; name: string; unitsSold: number; revenue: Prisma.Decimal }>();
+  for (const item of orderItems) {
+    const existing = productTotals.get(item.product.id);
+    const lineRevenue = item.unitPrice.mul(item.quantity);
+    if (existing) {
+      existing.unitsSold += item.quantity;
+      existing.revenue = existing.revenue.add(lineRevenue);
+    } else {
+      productTotals.set(item.product.id, { productId: item.product.id, name: item.product.name, unitsSold: item.quantity, revenue: lineRevenue });
+    }
+  }
+  const topProducts = Array.from(productTotals.values())
+    .sort((a, b) => Number(b.revenue) - Number(a.revenue))
+    .slice(0, 5)
+    .map((p) => ({ productId: p.productId, name: p.name, unitsSold: p.unitsSold, revenue: p.revenue.toString() }));
+
+  return {
+    rangeDays,
+    totalRevenue: totalRevenue.toString(),
+    totalOrders,
+    averageOrderValue: averageOrderValue.toString(),
+    newCustomers,
+    revenueTrend,
+    ordersByStatus,
+    topProducts,
+  };
+}

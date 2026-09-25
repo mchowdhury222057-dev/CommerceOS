@@ -1,78 +1,86 @@
-import { useOutletContext, useParams } from "react-router-dom";
+import { useMemo, useState } from "react";
+import { Link, useOutletContext, useParams, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, PackageSearch } from "lucide-react";
+import { SearchX } from "lucide-react";
 import { listProducts } from "../api/storefront";
+import { SectionRenderer } from "../components/sections/SectionRenderer";
 import { ProductCard, ProductCardSkeleton } from "../components/ProductCard";
 import type { PublicStore } from "../lib/api-types";
 
-// Per SRS Part 22.4/2.3 - a real hero banner (not empty white space): the
-// store's own hero copy (still sourced from the API - that's content, not
-// branding) inside a bold, gradient, on-brand band using this app's own
-// default teal, with an obvious "Shop Now" CTA. Doubles as the product
-// listing page (no separate /products route this app) - "All Products"
-// below is both the homepage grid and the full catalog.
+// Per Sections 9/20/27 - the homepage is now built entirely from the
+// published theme's ordered, enabled section list, rendered against real
+// product data (fetched once, here, and handed down to every section that
+// needs it) rather than a hardcoded hero + product grid.
+//
+// A ?q= param (set by Nav's real, client-side search) switches the page
+// into a plain search-results grid instead of the theme's section list -
+// hero/promo/trust sections don't make sense mid-search, same UX pattern
+// most storefronts use. No backend search endpoint exists, so this filters
+// the same product list the homepage already fetches - real filtering, not
+// a fabricated integration.
 export default function HomePage() {
   const { storeSlug = "" } = useParams();
   const store = useOutletContext<PublicStore>();
   const productsQuery = useQuery({ queryKey: ["products", storeSlug], queryFn: () => listProducts(storeSlug) });
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [searchParams] = useSearchParams();
+  const query = searchParams.get("q")?.trim() ?? "";
 
-  return (
-    <div>
-      <section className="relative overflow-hidden bg-gradient-to-br from-primary to-primary-hover px-4 py-20 text-center text-white sm:py-28">
-        <div className="pointer-events-none absolute inset-0 opacity-[0.07]" style={{ backgroundImage: "radial-gradient(circle, #fff 1.5px, transparent 1.5px)", backgroundSize: "28px 28px" }} aria-hidden="true" />
-        <div className="relative">
-          <h1 className="mx-auto max-w-2xl text-4xl font-extrabold tracking-tight sm:text-5xl">{store.layout.heroHeading}</h1>
-          {store.layout.heroSubheading && (
-            <p className="mx-auto mt-4 max-w-xl text-base text-white/90 sm:text-lg">{store.layout.heroSubheading}</p>
-          )}
-          <a
-            href="#products"
-            className="mt-8 inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-semibold text-primary shadow-lg transition-transform hover:scale-105"
-          >
-            Shop Now
-            <ArrowRight size={16} aria-hidden="true" />
-          </a>
-        </div>
-      </section>
+  const searchResults = useMemo(() => {
+    if (!query) return null;
+    const needle = query.toLowerCase();
+    return (productsQuery.data?.products ?? []).filter((p) => p.name.toLowerCase().includes(needle));
+  }, [query, productsQuery.data]);
 
-      <div id="products" className="mx-auto max-w-6xl px-4 py-12 sm:py-16">
-        <div className="mb-6 flex items-baseline justify-between">
-          <h2 className="text-2xl font-bold tracking-tight text-text-primary">All Products</h2>
-          {productsQuery.data && (
-            <span className="text-sm text-text-secondary">{productsQuery.data.products.length} items</span>
-          )}
-        </div>
-
-        {productsQuery.isError && (
-          <p className="rounded-lg border border-border-default bg-surface-card px-4 py-8 text-center text-status-danger">
-            Could not load products right now. Please try again shortly.
-          </p>
-        )}
+  if (query) {
+    return (
+      <div className="mx-auto max-w-theme px-4" style={{ paddingBlock: "var(--theme-section-spacing)" }}>
+        <h1 className="mb-1 font-heading text-2xl font-bold tracking-tight text-text-primary sm:text-3xl">
+          Search results for &ldquo;{query}&rdquo;
+        </h1>
+        {!productsQuery.isLoading && <p className="mb-6 text-sm text-text-secondary">{searchResults?.length ?? 0} products found</p>}
 
         {productsQuery.isLoading && (
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-6 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 sm:gap-6 lg:grid-cols-4">
             {Array.from({ length: 8 }, (_, i) => (
               <ProductCardSkeleton key={i} />
             ))}
           </div>
         )}
 
-        {productsQuery.data?.products.length === 0 && (
-          <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border-default bg-surface-card px-4 py-16 text-center">
-            <PackageSearch size={40} className="text-text-disabled" aria-hidden="true" />
-            <p className="font-medium text-text-primary">No products yet</p>
-            <p className="max-w-xs text-sm text-text-secondary">This store hasn't added any products. Check back soon.</p>
+        {!productsQuery.isLoading && searchResults && searchResults.length === 0 && (
+          <div
+            className="flex flex-col items-center gap-3 border border-dashed border-border-default bg-surface-card px-4 py-16 text-center"
+            style={{ borderRadius: "var(--radius-md)" }}
+          >
+            <SearchX size={40} className="text-text-disabled" aria-hidden="true" />
+            <p className="font-medium text-text-primary">No products match &ldquo;{query}&rdquo;</p>
+            <Link to={`/${storeSlug}`} className="text-sm font-medium text-primary hover:underline">
+              Clear search
+            </Link>
           </div>
         )}
 
-        {productsQuery.data && productsQuery.data.products.length > 0 && (
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-6 lg:grid-cols-4">
-            {productsQuery.data.products.map((product) => (
-              <ProductCard key={product.id} product={product} />
+        {!productsQuery.isLoading && searchResults && searchResults.length > 0 && (
+          <div className="grid grid-cols-2 gap-4 sm:gap-6 lg:grid-cols-4">
+            {searchResults.map((product) => (
+              <ProductCard key={product.id} product={product} cardStyle={store.theme.productCardStyle} showAddToCart />
             ))}
           </div>
         )}
       </div>
-    </div>
+    );
+  }
+
+  return (
+    <SectionRenderer
+      sections={store.layout.sections}
+      products={productsQuery.data?.products ?? []}
+      productsLoading={productsQuery.isLoading}
+      productsError={productsQuery.isError}
+      cardStyle={store.theme.productCardStyle}
+      selectedCategoryId={selectedCategoryId}
+      onSelectCategory={setSelectedCategoryId}
+    />
   );
 }

@@ -35,9 +35,28 @@ export interface StartImpersonationResult {
   expiresAt: string;
 }
 
+// Impersonation targets the store's Store Owner (a store has at most one,
+// by construction - the same invariant store.service.ts's listStores
+// relies on). Every check here is enforced server-side regardless of what
+// the Admin Panel UI already filters client-side, per the "never trust the
+// frontend alone" rule that governs every other authorization boundary in
+// this codebase.
 export async function startImpersonation(input: StartImpersonationInput): Promise<StartImpersonationResult> {
   const store = await prisma.store.findUnique({ where: { id: input.storeId } });
   if (!store) throw AppError.notFound(`Store ${input.storeId} not found`);
+
+  const owner = await prisma.user.findFirst({ where: { storeId: input.storeId, role: "STORE_OWNER" } });
+  if (!owner) throw AppError.conflict("This store has no Store Owner to impersonate", "NO_STORE_OWNER");
+  if (owner.status !== "ACTIVE") {
+    throw AppError.conflict("This user cannot be impersonated", "STORE_OWNER_NOT_ACTIVE");
+  }
+
+  if (store.status !== "APPROVED") {
+    throw AppError.conflict(
+      `Cannot impersonate this Store Owner because the store is ${store.status.toLowerCase()}, not approved`,
+      `STORE_${store.status}`,
+    );
+  }
 
   const session = await prisma.impersonationSession.create({
     data: { masterAdminId: input.masterAdmin.id, targetStoreId: input.storeId, reason: input.reason },

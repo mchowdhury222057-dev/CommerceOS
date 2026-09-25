@@ -34,18 +34,18 @@ export default function OrderConfirmationPage() {
 
   return (
     <div className="mx-auto max-w-xl px-4 py-12 sm:py-16">
-      <div className="mb-8 flex flex-col items-center text-center">
-        <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-status-success/10">
+      <div className="mb-8 flex animate-fade-in-up flex-col items-center text-center">
+        <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-status-success/10 shadow-sm">
           <CheckCircle2 size={44} className="text-status-success" aria-hidden="true" />
         </div>
-        <h1 className="text-2xl font-bold tracking-tight text-text-primary">Order placed!</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-text-primary sm:text-3xl">Order placed!</h1>
         <p className="mt-1.5 text-sm text-text-secondary">
           Order <span className="font-semibold text-text-primary">#{order.id.slice(-8).toUpperCase()}</span>
         </p>
       </div>
 
-      <div className="mb-5 flex items-start gap-3 rounded-xl border border-primary/20 bg-primary-subtle p-4">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-white">
+      <div className="mb-5 flex items-start gap-3 rounded-2xl border border-primary/20 bg-primary-subtle p-4 shadow-sm">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent text-white shadow-sm">
           <PhoneCall size={18} aria-hidden="true" />
         </div>
         <div>
@@ -57,7 +57,7 @@ export default function OrderConfirmationPage() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-border-default bg-surface-card p-5">
+      <div className="rounded-2xl border border-border-default bg-surface-card p-5 shadow-sm">
         <h2 className="mb-3 text-sm font-semibold text-text-primary">Order Summary</h2>
         <ul className="mb-3 space-y-2 text-sm">
           {order.items.map((item) => (
@@ -69,21 +69,26 @@ export default function OrderConfirmationPage() {
             </li>
           ))}
         </ul>
-        <div className="flex justify-between border-t border-border-default pt-3 text-base font-bold text-text-primary">
+        <div className="flex justify-between border-t border-border-default pt-3 text-base font-bold tracking-tight text-text-primary">
           <span>Total</span>
           <span>{formatMoney(order.total)}</span>
         </div>
       </div>
 
-      <div className="mt-4 flex items-start gap-3 rounded-xl border border-border-default bg-surface-card p-4">
-        <MapPin size={18} className="mt-0.5 shrink-0 text-text-secondary" aria-hidden="true" />
+      <div className="mt-4 flex items-start gap-3 rounded-2xl border border-border-default bg-surface-card p-4 shadow-sm">
+        <MapPin size={18} className="mt-0.5 shrink-0 text-primary" aria-hidden="true" />
         <div className="text-sm">
           <div className="font-medium text-text-primary">Delivery address</div>
           <div className="text-text-secondary">{order.deliveryAddress}</div>
         </div>
       </div>
 
-      <Button variant="secondary" size="lg" onClick={() => navigate(`/${storeSlug}`)} className="mt-6 w-full">
+      <Button
+        variant="secondary"
+        size="lg"
+        onClick={() => navigate(`/${storeSlug}`)}
+        className="mt-6 w-full transition-transform hover:-translate-y-0.5"
+      >
         Continue shopping
       </Button>
     </div>

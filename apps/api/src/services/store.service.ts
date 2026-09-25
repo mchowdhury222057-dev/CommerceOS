@@ -55,13 +55,24 @@ export interface StoreListFilters {
 // receive NID numbers or document references through this general-purpose
 // endpoint; those stay behind the token-gated/admin-only verification
 // endpoints (verification.routes.ts).
-export async function getStoreById(storeId: string): Promise<Store & { verification: { status: string; submittedAt: Date | null } | null }> {
+//
+// Owner name/email (minimal, same projection listStores already exposes)
+// is what the Store Dashboard's Impersonation Banner shows - "Impersonating:
+// owner@store.com" - since the impersonation JWT's own `email` claim is the
+// Master Admin's email, not the Store Owner's (Part 15.2).
+export async function getStoreById(
+  storeId: string,
+): Promise<Store & { verification: { status: string; submittedAt: Date | null } | null; owner: { name: string; email: string } | null }> {
   const store = await prisma.store.findUnique({
     where: { id: storeId },
-    include: { verification: { select: { status: true, submittedAt: true } } },
+    include: {
+      verification: { select: { status: true, submittedAt: true } },
+      users: { where: { role: "STORE_OWNER" }, select: { name: true, email: true }, take: 1 },
+    },
   });
   if (!store) throw AppError.notFound(`Store ${storeId} not found`);
-  return store;
+  const { users, ...rest } = store;
+  return { ...rest, owner: users[0] ?? null };
 }
 
 // Per Part 6/D.2.1 - the Store Management table needs to show which owner a

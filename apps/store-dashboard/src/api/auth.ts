@@ -10,19 +10,21 @@ export function login(email: string, password: string): Promise<LoginResult> {
   return api.post<LoginResult>("/api/auth/login", { email, password });
 }
 
+export interface SignupInput {
+  storeName: string;
+  slug: string;
+  ownerName: string;
+  email: string;
+  phone: string;
+  password: string;
+}
+
+export function signup(input: SignupInput): Promise<LoginResult> {
+  return api.post<LoginResult>("/api/auth/signup", input);
+}
+
 export function logout(): Promise<void> {
   return api.post<void>("/api/auth/logout");
-}
-
-export interface AdminSignupInput {
-  name: string;
-  email: string;
-  password: string;
-  setupKey: string;
-}
-
-export function adminSignup(input: AdminSignupInput): Promise<LoginResult> {
-  return api.post<LoginResult>("/api/auth/admin-signup", input);
 }
 
 export interface RequestPasswordResetResult {

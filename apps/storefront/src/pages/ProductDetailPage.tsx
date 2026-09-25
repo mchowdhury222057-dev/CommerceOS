@@ -92,15 +92,15 @@ export default function ProductDetailPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 sm:py-10">
-      <Link to={`/${storeSlug}`} className="mb-6 inline-flex items-center gap-1 text-sm text-text-secondary hover:text-text-primary">
+    <div className="mx-auto max-w-6xl px-4 py-8 sm:py-10">
+      <Link to={`/${storeSlug}`} className="mb-6 inline-flex items-center gap-1 text-sm text-text-secondary transition-colors hover:text-text-primary">
         <ChevronLeft size={16} aria-hidden="true" />
         Back to shop
       </Link>
 
-      <div className="grid grid-cols-1 gap-8 md:grid-cols-2 md:gap-12">
+      <div className="grid grid-cols-1 gap-8 md:grid-cols-2 md:gap-14">
         <div>
-          <div className="flex aspect-square items-center justify-center overflow-hidden rounded-xl border border-border-default bg-surface-sunken">
+          <div className="flex aspect-square items-center justify-center overflow-hidden rounded-2xl border border-border-default bg-surface-sunken shadow-sm">
             {activeImage ? (
               <img src={activeImage.url} alt={activeImage.altText ?? product.name} className="h-full w-full object-cover" />
             ) : (
@@ -117,8 +117,8 @@ export default function ProductDetailPage() {
                   key={image.id}
                   type="button"
                   onClick={() => setActiveImageIndex(i)}
-                  className={`h-16 w-16 shrink-0 overflow-hidden rounded-lg border-2 transition-colors ${
-                    i === activeImageIndex ? "border-primary" : "border-border-default hover:border-border-strong"
+                  className={`h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 transition-all ${
+                    i === activeImageIndex ? "border-primary shadow-sm" : "border-border-default hover:border-border-strong"
                   }`}
                 >
                   <img src={image.url} alt="" className="h-full w-full object-cover" />
@@ -129,14 +129,14 @@ export default function ProductDetailPage() {
         </div>
 
         <div>
-          {product.category && <p className="mb-1 text-xs font-medium uppercase tracking-wide text-primary">{product.category.name}</p>}
-          <h1 className="text-2xl font-bold text-text-primary sm:text-3xl">{product.name}</h1>
+          {product.category && <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-primary">{product.category.name}</p>}
+          <h1 className="text-2xl font-bold tracking-tight text-text-primary sm:text-3xl">{product.name}</h1>
 
           <div className="mt-3 flex items-center gap-3">
-            <p className="text-3xl font-extrabold text-text-primary">{price != null ? formatMoney(price) : formatMoney(Number(product.basePrice))}</p>
+            <p className="text-3xl font-extrabold tracking-tight text-text-primary">{price != null ? formatMoney(price) : formatMoney(Number(product.basePrice))}</p>
             {selectedVariant && (
               <span
-                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
                   outOfStock ? "bg-status-danger/10 text-status-danger" : lowStock ? "bg-accent/10 text-accent" : "bg-status-success/10 text-status-success"
                 }`}
               >
@@ -157,10 +157,10 @@ export default function ProductDetailPage() {
                     key={value}
                     type="button"
                     onClick={() => setSelected((s) => ({ ...s, [key]: value }))}
-                    className={`min-w-[3rem] rounded-full border-2 px-4 py-2 text-sm font-medium transition-colors ${
+                    className={`min-w-[3rem] rounded-full border-2 px-4 py-2 text-sm font-medium transition-all ${
                       selected[key] === value
-                        ? "border-primary bg-primary text-white"
-                        : "border-border-default text-text-primary hover:border-border-strong"
+                        ? "border-primary bg-primary text-white shadow-sm"
+                        : "border-border-default text-text-primary hover:border-primary/50"
                     }`}
                   >
                     {value}
@@ -176,7 +176,7 @@ export default function ProductDetailPage() {
               <select
                 value={quantity}
                 onChange={(e) => setQuantity(Number(e.target.value))}
-                className="rounded-md border border-border-default bg-surface-card px-3 py-2 text-sm text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                className="rounded-lg border border-border-default bg-surface-card px-3 py-2 text-sm text-text-primary transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
               >
                 {Array.from({ length: maxQuantity }, (_, i) => i + 1).map((n) => (
                   <option key={n} value={n}>
@@ -188,11 +188,17 @@ export default function ProductDetailPage() {
           )}
 
           <div className="mt-7">
-            <Button variant="primary" size="lg" disabled={!selectedVariant || outOfStock} onClick={handleAddToCart} className="w-full sm:w-auto sm:min-w-[220px]">
+            <Button
+              variant="primary"
+              size="lg"
+              disabled={!selectedVariant || outOfStock}
+              onClick={handleAddToCart}
+              className="w-full shadow-md shadow-primary/20 transition-transform hover:-translate-y-0.5 sm:w-auto sm:min-w-[220px]"
+            >
               {outOfStock ? "Out of Stock" : selectedVariant ? "Add to Cart" : "Select options"}
             </Button>
             {added && (
-              <div className="mt-3 flex items-center gap-2 rounded-md bg-status-success/10 px-3 py-2 text-sm font-medium text-status-success">
+              <div className="mt-3 flex items-center gap-2 rounded-lg bg-status-success/10 px-3.5 py-2.5 text-sm font-medium text-status-success animate-fade-in-up">
                 <Check size={16} aria-hidden="true" />
                 Added to cart —{" "}
                 <button type="button" onClick={() => navigate(`/${storeSlug}/cart`)} className="underline hover:no-underline">
@@ -202,7 +208,7 @@ export default function ProductDetailPage() {
             )}
           </div>
 
-          <div className="mt-6 flex items-center gap-2 rounded-lg border border-border-default bg-surface-card px-3.5 py-3 text-xs text-text-secondary">
+          <div className="mt-6 flex items-center gap-2.5 rounded-xl border border-border-default bg-surface-card px-4 py-3.5 text-xs text-text-secondary">
             <ShieldCheck size={18} className="shrink-0 text-primary" aria-hidden="true" />
             Cash on Delivery — pay when your order arrives, no online payment needed.
           </div>

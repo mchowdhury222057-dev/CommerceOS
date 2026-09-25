@@ -7,12 +7,15 @@ import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import DashboardPage from "./pages/DashboardPage";
 import StoreManagementPage from "./pages/StoreManagementPage";
+import ThemeManagementPage from "./pages/ThemeManagementPage";
 import ThemeEditorPage from "./pages/ThemeEditorPage";
 import AuditLogPage from "./pages/AuditLogPage";
 import StoreActivityPage from "./pages/StoreActivityPage";
 import VerificationCenterPage from "./pages/VerificationCenterPage";
 import VerificationReviewPage from "./pages/VerificationReviewPage";
 import ProfilePage from "./pages/ProfilePage";
+import SystemHealthPage from "./pages/SystemHealthPage";
+import SettingsPage from "./pages/SettingsPage";
 
 export const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
@@ -30,11 +33,14 @@ export const router = createBrowserRouter([
       { index: true, element: <Navigate to="/dashboard" replace /> },
       { path: "dashboard", element: <DashboardPage /> },
       { path: "stores", element: <StoreManagementPage /> },
+      { path: "themes", element: <ThemeManagementPage /> },
       { path: "stores/:storeId/theme", element: <ThemeEditorPage /> },
       { path: "stores/:storeId/activity", element: <StoreActivityPage /> },
       { path: "verifications", element: <VerificationCenterPage /> },
       { path: "verifications/:verificationId", element: <VerificationReviewPage /> },
       { path: "audit-logs", element: <AuditLogPage /> },
+      { path: "system-health", element: <SystemHealthPage /> },
+      { path: "settings", element: <SettingsPage /> },
       { path: "profile", element: <ProfilePage /> },
     ],
   },

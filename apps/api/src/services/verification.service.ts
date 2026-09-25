@@ -7,46 +7,22 @@ import { emit } from "../events/bus.js";
 import { writeAuditLog } from "../lib/audit.js";
 import { logger } from "../lib/logger.js";
 import { getSignedDocumentUrl, uploadPrivateDocumentBuffer } from "../lib/cloudinary.js";
-import { sendAdminVerificationSubmittedEmail, sendVerificationRequiredEmail } from "./email.service.js";
+import { sendAdminVerificationSubmittedEmail } from "./email.service.js";
 
-const VERIFICATION_TOKEN_TTL_MS = 48 * 60 * 60 * 1000; // 48 hours, per Section 7
-const STORE_DASHBOARD_URL = process.env.STORE_DASHBOARD_URL ?? "http://localhost:5174";
 const ADMIN_PANEL_URL = process.env.ADMIN_PANEL_URL ?? "http://localhost:5173";
 
 function hashToken(token: string): string {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
 
-// Per Section 3 - called from auth.service.ts's signup() right after the
-// Store/User are created. Issues the one-time verification link and
-// sends it by email; the raw token is never persisted, only its hash
-// (Section 7), matching the invite-token convention elsewhere in this
-// codebase.
-export async function initiateVerification(storeId: string, ownerId: string, ownerEmail: string, storeName: string): Promise<void> {
-  const token = crypto.randomBytes(32).toString("hex");
-  const tokenHash = hashToken(token);
-
-  await prisma.verification.create({
-    data: {
-      storeId,
-      ownerId,
-      status: "NOT_STARTED",
-      tokenHash,
-      tokenExpiresAt: new Date(Date.now() + VERIFICATION_TOKEN_TTL_MS),
-    },
-  });
-
-  const verificationLink = `${STORE_DASHBOARD_URL}/store-verification/${token}`;
-
-  try {
-    await sendVerificationRequiredEmail(ownerEmail, storeName, verificationLink);
-  } catch (error) {
-    // Signup itself must still succeed even if the email provider is
-    // down/misconfigured - the owner can be resent a link later. Logged
-    // loudly, never silently swallowed (Section 28).
-    logger.error({ msg: "Failed to send verification-required email", err: error, storeId });
-  }
-}
+// initiateVerification()/resendVerificationEmail() (email-based signup
+// verification: token issuance + sendVerificationRequiredEmail) were
+// removed - email verification is no longer part of the Store Owner
+// signup flow. getVerificationByToken/submitVerification below are kept
+// (not wired to anything reachable from signup) so the Verification model,
+// Admin Verification Center, and approveStore/rejectStore's existing
+// Verification updates keep working unchanged; no new Verification row is
+// ever created for a self-signup anymore, so these are effectively dormant.
 
 export interface VerificationTokenView {
   storeName: string;
