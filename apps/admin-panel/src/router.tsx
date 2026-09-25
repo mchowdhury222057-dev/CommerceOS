@@ -14,6 +14,8 @@ import StoreActivityPage from "./pages/StoreActivityPage";
 import VerificationCenterPage from "./pages/VerificationCenterPage";
 import VerificationReviewPage from "./pages/VerificationReviewPage";
 import ProfilePage from "./pages/ProfilePage";
+import SystemHealthPage from "./pages/SystemHealthPage";
+import SettingsPage from "./pages/SettingsPage";
 
 export const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
@@ -37,6 +39,8 @@ export const router = createBrowserRouter([
       { path: "verifications", element: <VerificationCenterPage /> },
       { path: "verifications/:verificationId", element: <VerificationReviewPage /> },
       { path: "audit-logs", element: <AuditLogPage /> },
+      { path: "system-health", element: <SystemHealthPage /> },
+      { path: "settings", element: <SettingsPage /> },
       { path: "profile", element: <ProfilePage /> },
     ],
   },

@@ -60,3 +60,8 @@ export const inviteRedeemRateLimiter = createAuthRateLimiter({ windowMs: 60_000,
 // database (Store + User rows), so it needs the same abuse-resistant
 // posture as login rather than being left unguarded.
 export const signupRateLimiter = createAuthRateLimiter({ windowMs: 60_000, max: 5, keyPrefix: "signup" });
+
+// Storefront customer accounts - same posture as staff login/signup, but
+// their own counters so shoppers and staff never share a bucket.
+export const customerLoginRateLimiter = createAuthRateLimiter({ windowMs: 60_000, max: 10, keyPrefix: "customer-login" });
+export const customerSignupRateLimiter = createAuthRateLimiter({ windowMs: 60_000, max: 5, keyPrefix: "customer-signup" });

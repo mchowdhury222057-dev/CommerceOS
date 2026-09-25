@@ -173,6 +173,18 @@ export interface OrderView {
   items: OrderItemView[];
 }
 
+export interface CustomerAccount {
+  id: string;
+  name: string;
+  phone: string;
+  createdAt: string;
+}
+
+export interface CustomerAuthResult {
+  token: string;
+  customer: CustomerAccount;
+}
+
 export interface AppErrorBody {
   error: { code: string; message: string; details?: unknown };
 }

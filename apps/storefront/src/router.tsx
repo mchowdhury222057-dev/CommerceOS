@@ -6,6 +6,9 @@ import CartPage from "./pages/CartPage";
 import CheckoutPage from "./pages/CheckoutPage";
 import OrderConfirmationPage from "./pages/OrderConfirmationPage";
 import OrderLookupPage from "./pages/OrderLookupPage";
+import AccountLoginPage from "./pages/AccountLoginPage";
+import AccountSignupPage from "./pages/AccountSignupPage";
+import AccountPage from "./pages/AccountPage";
 
 export const router = createBrowserRouter([
   {
@@ -27,6 +30,9 @@ export const router = createBrowserRouter([
       { path: "checkout", element: <CheckoutPage /> },
       { path: "order-confirmation", element: <OrderConfirmationPage /> },
       { path: "track-order", element: <OrderLookupPage /> },
+      { path: "account", element: <AccountPage /> },
+      { path: "account/login", element: <AccountLoginPage /> },
+      { path: "account/signup", element: <AccountSignupPage /> },
     ],
   },
 ]);

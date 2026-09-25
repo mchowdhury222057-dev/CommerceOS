@@ -267,3 +267,58 @@ export interface DashboardSummary {
   totalStoreOwners: number;
   recentImpersonationSessionCount: number;
 }
+
+export type RevenueRangeDays = 7 | 30 | 90 | 365;
+
+export interface PlatformRevenue {
+  rangeDays: RevenueRangeDays;
+  totalRevenue: string;
+  revenueToday: string;
+  revenueThisMonth: string;
+  revenueThisYear: string;
+  revenueTrend: Array<{ date: string; revenue: string }>;
+  revenueByStore: Array<{ storeId: string; storeName: string; orders: number; revenue: string }>;
+}
+
+export interface StoreGrowth {
+  totalStores: number;
+  newStoresThisWeek: number;
+  newStoresThisMonth: number;
+  newStoresThisYear: number;
+  growthTrend: Array<{ month: string; totalStores: number }>;
+}
+
+export type ServiceStatus = "operational" | "warning" | "error";
+
+export interface ServiceHealthCheck {
+  name: string;
+  status: ServiceStatus;
+  detail?: string;
+}
+
+export interface SystemHealth {
+  status: ServiceStatus;
+  checkedAt: string;
+  environment: string;
+  uptimeSeconds: number;
+  services: ServiceHealthCheck[];
+  recentErrors: Array<{ id: string; eventName: string; errorMessage: string; attemptCount: number; lastAttemptAt: string }>;
+  failedEventCount: number;
+}
+
+export interface PlatformSettings {
+  platformName: string;
+  platformLogoUrl: string | null;
+  platformDescription: string | null;
+  maintenanceMode: boolean;
+  maintenanceMessage: string | null;
+  updatedAt: string;
+}
+
+export interface UpdatePlatformSettingsInput {
+  platformName?: string;
+  platformLogoUrl?: string | null;
+  platformDescription?: string | null;
+  maintenanceMode?: boolean;
+  maintenanceMessage?: string | null;
+}

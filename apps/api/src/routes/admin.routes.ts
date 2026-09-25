@@ -1,11 +1,14 @@
 import { Router } from "express";
-import { createStoreSchema, storeStatusSchema, type StoreStatusInput } from "@commerceos/types";
+import { createStoreSchema, storeStatusSchema, updatePlatformSettingsSchema, type StoreStatusInput, type UpdatePlatformSettingsInput } from "@commerceos/types";
 import { prisma } from "../lib/prisma.js";
+import { AppError } from "../lib/errors.js";
 import { getAuthUser, requireAuth, requireMasterAdmin } from "../middleware/auth.js";
 import { asyncHandler } from "../middleware/error-handler.js";
 import { validateBody } from "../middleware/validate.js";
 import { approveStore, createStore, getStoreById, listStores, rejectStore, suspendStore } from "../services/store.service.js";
-import { getDashboardSummary } from "../services/dashboard.service.js";
+import { getDashboardSummary, getPlatformRevenue, getStoreGrowth, REVENUE_RANGE_DAYS, type RevenueRangeDays } from "../services/dashboard.service.js";
+import { getSystemHealth } from "../services/system-health.service.js";
+import { getPlatformSettings, updatePlatformSettings } from "../services/platform-settings.service.js";
 import { getVerificationDetail, listVerifications, markUnderReview } from "../services/verification.service.js";
 import { listStoreThemes } from "../services/theme.service.js";
 import { impersonationRouter } from "./impersonation.routes.js";
@@ -23,6 +26,61 @@ adminRouter.get(
   asyncHandler(async (_req, res) => {
     const summary = await getDashboardSummary();
     res.json(summary);
+  }),
+);
+
+// Platform Revenue - integrated into the existing Dashboard page (not a
+// separate Analytics route), per this milestone's own instruction not to
+// duplicate an analytics surface that doesn't otherwise exist yet.
+adminRouter.get(
+  "/analytics/revenue",
+  asyncHandler(async (req, res) => {
+    const rangeParam = Number(req.query.range ?? 30);
+    if (!REVENUE_RANGE_DAYS.includes(rangeParam as RevenueRangeDays)) {
+      throw AppError.validation(`range must be one of ${REVENUE_RANGE_DAYS.join(", ")}`);
+    }
+    const revenue = await getPlatformRevenue(rangeParam as RevenueRangeDays);
+    res.json(revenue);
+  }),
+);
+
+// Store Growth - same Dashboard integration as Platform Revenue above.
+adminRouter.get(
+  "/analytics/store-growth",
+  asyncHandler(async (_req, res) => {
+    const growth = await getStoreGrowth();
+    res.json(growth);
+  }),
+);
+
+// System Health - lightweight status page, not an external monitoring
+// integration (see system-health.service.ts for what each check actually
+// probes).
+adminRouter.get(
+  "/system-health",
+  asyncHandler(async (_req, res) => {
+    const health = await getSystemHealth();
+    res.json(health);
+  }),
+);
+
+// Platform Settings - a single configuration row (see platform-settings.
+// service.ts); GET creates the row on first read via upsert, so there is
+// no separate "not configured yet" state for the frontend to handle.
+adminRouter.get(
+  "/settings",
+  asyncHandler(async (_req, res) => {
+    const settings = await getPlatformSettings();
+    res.json(settings);
+  }),
+);
+
+adminRouter.put(
+  "/settings",
+  validateBody(updatePlatformSettingsSchema),
+  asyncHandler(async (req, res) => {
+    const settings = await updatePlatformSettings(req.body as UpdatePlatformSettingsInput, getAuthUser(req));
+    res.json(settings);
   }),
 );
 

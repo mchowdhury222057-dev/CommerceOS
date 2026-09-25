@@ -566,6 +566,24 @@ model StoreFeatureFlag {
   @@unique([storeId, key])
 }
 
+// Admin Panel "Settings" milestone - a single-row platform configuration
+// table (id is always the literal "singleton", enforced by the default,
+// so there is exactly one row by construction). Distinct from FeatureFlag
+// (per-feature on/off toggles for staged rollout) - this holds actual
+// configuration VALUES (name, logo, maintenance copy), which FeatureFlag
+// has no fields for. Who changed it is tracked via the existing AuditLog
+// (an "UpdatePlatformSettings" action), not a bespoke updatedBy column.
+model PlatformSettings {
+  id                  String   @id @default("singleton")
+  platformName        String   @default("CommerceOS")
+  platformLogoUrl     String?
+  platformDescription String?
+  maintenanceMode     Boolean  @default(false)
+  maintenanceMessage  String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
 model AuditLog {
   id                     String                @id @default(cuid())
   actorId                String

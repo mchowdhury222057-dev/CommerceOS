@@ -1,4 +1,4 @@
-import { LayoutGrid } from "lucide-react";
+import { ArrowUpRight, LayoutGrid } from "lucide-react";
 import type { FeaturedCategoriesSectionSettings } from "../../lib/api-types";
 import type { Product } from "../../lib/api-types";
 
@@ -30,8 +30,18 @@ export function FeaturedCategories({
   if (list.length === 0) return null;
 
   return (
-    <section className="mx-auto max-w-theme px-4" style={{ paddingBlock: "var(--theme-section-spacing)" }}>
-      <h2 className="mb-6 font-heading text-2xl font-bold tracking-tight text-text-primary sm:text-3xl">{settings.title}</h2>
+    <section id="categories" className="mx-auto max-w-theme scroll-mt-20 px-4" style={{ paddingBlock: "var(--theme-section-spacing)" }}>
+      <div className="mb-6 flex items-end justify-between gap-4">
+        <div>
+          <h2 className="font-heading text-2xl font-bold tracking-tight text-text-primary sm:text-3xl">{settings.title}</h2>
+          <p className="mt-1 text-sm text-text-secondary">Find exactly what you need, faster.</p>
+        </div>
+        {selectedCategoryId && (
+          <button type="button" onClick={() => onSelectCategory(null)} className="shrink-0 text-sm font-medium text-primary hover:underline">
+            View All Categories →
+          </button>
+        )}
+      </div>
       <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
         {list.map((category) => {
           const active = selectedCategoryId === category.id;
@@ -45,6 +55,12 @@ export function FeaturedCategories({
               }`}
               style={{ borderRadius: "var(--radius-md)" }}
             >
+              <span
+                className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full border border-border-default bg-surface-page text-text-secondary opacity-0 transition-all duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:border-primary/40 group-hover:text-primary group-hover:opacity-100"
+                aria-hidden="true"
+              >
+                <ArrowUpRight size={14} />
+              </span>
               <span
                 className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-accent text-white shadow-sm transition-transform duration-300 group-hover:scale-110"
                 aria-hidden="true"

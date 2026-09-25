@@ -25,7 +25,7 @@ export function ProductGrid({
   cardStyle: "minimal" | "bordered" | "shadow";
 }) {
   return (
-    <section id="products" className="mx-auto max-w-theme px-4" style={{ paddingBlock: "var(--theme-section-spacing)" }}>
+    <section id="products" className="mx-auto max-w-theme scroll-mt-20 px-4" style={{ paddingBlock: "var(--theme-section-spacing)" }}>
       <div className="mb-6 flex items-baseline justify-between">
         <h2 className="font-heading text-2xl font-bold tracking-tight text-text-primary sm:text-3xl">{settings.title}</h2>
         {!isLoading && !isError && <span className="text-sm text-text-secondary">{products.length} items</span>}

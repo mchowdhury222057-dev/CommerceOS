@@ -6,3 +6,5 @@ export * from "./order.schema";
 export * from "./theme.schema";
 export * from "./impersonation.schema";
 export * from "./verification.schema";
+export * from "./platform-settings.schema";
+export * from "./customer.schema";

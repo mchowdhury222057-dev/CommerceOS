@@ -71,6 +71,19 @@ export interface StoreDashboardSummary {
   recentOrders: RecentOrder[];
 }
 
+export type AnalyticsRangeDays = 7 | 30 | 90;
+
+export interface StoreAnalytics {
+  rangeDays: AnalyticsRangeDays;
+  totalRevenue: string;
+  totalOrders: number;
+  averageOrderValue: string;
+  newCustomers: number;
+  revenueTrend: Array<{ date: string; revenue: string }>;
+  ordersByStatus: Array<{ status: OrderStatus; count: number }>;
+  topProducts: Array<{ productId: string; name: string; unitsSold: number; revenue: string }>;
+}
+
 export type OrderStatus = "PENDING" | "CONFIRMED" | "PROCESSING" | "SHIPPED" | "DELIVERED" | "RETURNED" | "CANCELLED";
 export type CourierName = "PATHAO" | "STEADFAST" | "REDX" | "OTHER";
 
