@@ -1,15 +1,32 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Store, ShoppingCart, Users, ShieldAlert, CheckCircle2, ShieldOff, Clock, CalendarPlus, TrendingUp } from "lucide-react";
-import { getDashboardSummary } from "../api/dashboard";
+import { Store, ShoppingCart, Users, ShieldAlert, CheckCircle2, ShieldOff, Clock, CalendarPlus, TrendingUp, Wallet, CalendarDays, CalendarRange, UserPlus } from "lucide-react";
+import { getDashboardSummary, getPlatformRevenue, getStoreGrowth } from "../api/dashboard";
 import { listAuditLogs } from "../api/audit-logs";
 import { StatCard } from "../components/ui/StatCard";
 import { Card, CardBody, CardHeader, CardTitle } from "../components/ui/Card";
 import { SectionHeader } from "../components/ui/SectionHeader";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Skeleton } from "../components/ui/Skeleton";
-import type { StoreStatus } from "../lib/api-types";
+import { Table, THead, TBody, TR, TH, TD, TableState } from "../components/ui/Table";
+import { Tabs } from "../components/ui/Tabs";
+import { RevenueTrendChart } from "../components/RevenueTrendChart";
+import { StoreGrowthChart } from "../components/StoreGrowthChart";
+import type { RevenueRangeDays, StoreStatus } from "../lib/api-types";
+
+const RANGE_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "7", label: "7 Days" },
+  { value: "30", label: "30 Days" },
+  { value: "90", label: "3 Months" },
+  { value: "365", label: "1 Year" },
+];
+
+function formatMoney(value: string): string {
+  const n = Number(value);
+  return `৳${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
 
 const STATUS_LABEL: Record<StoreStatus, string> = {
   PENDING: "Pending Approval",
@@ -50,8 +67,16 @@ export default function DashboardPage() {
     queryKey: ["audit-logs", "recent"],
     queryFn: () => listAuditLogs({ pageSize: 8 }),
   });
+  const [revenueRange, setRevenueRange] = useState<RevenueRangeDays>(30);
+  const revenueQuery = useQuery({
+    queryKey: ["dashboard", "revenue", revenueRange],
+    queryFn: () => getPlatformRevenue(revenueRange),
+  });
+  const growthQuery = useQuery({ queryKey: ["dashboard", "store-growth"], queryFn: getStoreGrowth });
 
   const summary = summaryQuery.data;
+  const revenue = revenueQuery.data;
+  const growth = growthQuery.data;
 
   return (
     <div>
@@ -167,6 +192,126 @@ export default function DashboardPage() {
                 </li>
               ))}
             </ul>
+          </CardBody>
+        </Card>
+      </motion.div>
+
+      <motion.div {...fadeUp(0.2)} className="mt-8">
+        <SectionHeader
+          title="Platform Revenue"
+          description="Revenue across every store on CommerceOS."
+          actions={<Tabs items={RANGE_OPTIONS} value={String(revenueRange)} onChange={(v) => setRevenueRange(Number(v) as RevenueRangeDays)} />}
+        />
+
+        {revenueQuery.isError && (
+          <p role="alert" className="mb-4 rounded-lg bg-status-danger/10 px-3.5 py-2.5 text-sm text-status-danger">
+            Could not load platform revenue. Retry shortly.
+          </p>
+        )}
+
+        <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            label="Total Revenue"
+            value={revenueQuery.isLoading ? "" : formatMoney(revenue?.totalRevenue ?? "0")}
+            icon={<Wallet size={16} aria-hidden="true" />}
+            tone="success"
+            loading={revenueQuery.isLoading}
+          />
+          <StatCard
+            label="Today"
+            value={revenueQuery.isLoading ? "" : formatMoney(revenue?.revenueToday ?? "0")}
+            icon={<CalendarDays size={16} aria-hidden="true" />}
+            tone="primary"
+            loading={revenueQuery.isLoading}
+          />
+          <StatCard
+            label="This Month"
+            value={revenueQuery.isLoading ? "" : formatMoney(revenue?.revenueThisMonth ?? "0")}
+            icon={<CalendarRange size={16} aria-hidden="true" />}
+            tone="primary"
+            loading={revenueQuery.isLoading}
+          />
+          <StatCard
+            label="This Year"
+            value={revenueQuery.isLoading ? "" : formatMoney(revenue?.revenueThisYear ?? "0")}
+            icon={<TrendingUp size={16} aria-hidden="true" />}
+            tone="info"
+            loading={revenueQuery.isLoading}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Revenue Trend</CardTitle>
+            </CardHeader>
+            <CardBody>
+              {revenueQuery.isLoading ? <Skeleton className="h-[240px] w-full" /> : <RevenueTrendChart data={revenue?.revenueTrend ?? []} />}
+            </CardBody>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Revenue by Store</CardTitle>
+            </CardHeader>
+            <CardBody className="p-0">
+              {revenueQuery.isLoading && (
+                <div className="space-y-3 p-5">
+                  {Array.from({ length: 4 }, (_, i) => (
+                    <Skeleton key={i} className="h-10 w-full" />
+                  ))}
+                </div>
+              )}
+              {!revenueQuery.isLoading && (
+                <Table>
+                  <THead>
+                    <tr>
+                      <TH>Store</TH>
+                      <TH className="text-right">Orders</TH>
+                      <TH className="text-right">Revenue</TH>
+                    </tr>
+                  </THead>
+                  <TBody>
+                    {revenue?.revenueByStore.length === 0 && (
+                      <TableState colSpan={3}>No paid orders in this range yet.</TableState>
+                    )}
+                    {revenue?.revenueByStore.slice(0, 8).map((row) => (
+                      <TR key={row.storeId}>
+                        <TD className="font-medium">{row.storeName}</TD>
+                        <TD className="text-right">{row.orders}</TD>
+                        <TD className="text-right font-semibold">{formatMoney(row.revenue)}</TD>
+                      </TR>
+                    ))}
+                  </TBody>
+                </Table>
+              )}
+            </CardBody>
+          </Card>
+        </div>
+      </motion.div>
+
+      <motion.div {...fadeUp(0.25)} className="mt-8">
+        <SectionHeader title="Store Growth" description="How the platform's store count is trending over time." />
+
+        {growthQuery.isError && (
+          <p role="alert" className="mb-4 rounded-lg bg-status-danger/10 px-3.5 py-2.5 text-sm text-status-danger">
+            Could not load store growth. Retry shortly.
+          </p>
+        )}
+
+        <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard label="Total Stores" value={growth?.totalStores ?? 0} icon={<Store size={16} aria-hidden="true" />} tone="primary" loading={growthQuery.isLoading} />
+          <StatCard label="New This Week" value={growth?.newStoresThisWeek ?? 0} icon={<UserPlus size={16} aria-hidden="true" />} tone="success" loading={growthQuery.isLoading} />
+          <StatCard label="New This Month" value={growth?.newStoresThisMonth ?? 0} icon={<CalendarPlus size={16} aria-hidden="true" />} tone="success" loading={growthQuery.isLoading} />
+          <StatCard label="New This Year" value={growth?.newStoresThisYear ?? 0} icon={<CalendarRange size={16} aria-hidden="true" />} tone="info" loading={growthQuery.isLoading} />
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Growth Trend — Last 12 Months</CardTitle>
+          </CardHeader>
+          <CardBody>
+            {growthQuery.isLoading ? <Skeleton className="h-[240px] w-full" /> : <StoreGrowthChart data={growth?.growthTrend ?? []} />}
           </CardBody>
         </Card>
       </motion.div>

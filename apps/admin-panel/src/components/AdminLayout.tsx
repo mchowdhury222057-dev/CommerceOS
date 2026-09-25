@@ -14,6 +14,8 @@ const SEGMENT_LABEL: Record<string, string> = {
   theme: "Theme Editor",
   activity: "Store Activity",
   "audit-logs": "System Logs",
+  "system-health": "System Health",
+  settings: "Settings",
   profile: "Profile",
 };
 

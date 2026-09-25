@@ -2,9 +2,10 @@ import type { AppErrorBody } from "./api-types";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "http://localhost:4000";
 
-// No auth on this app at all (Part 10.1 - guest checkout + phone lookup
-// only, no customer account/login exists in V1), so this client is a plain
-// fetch wrapper with no token handling, unlike admin-panel/store-dashboard's.
+// Plain fetch wrapper. Most storefront calls are public; customer-account
+// calls (account page, checkout) pass the signed-in customer's token
+// explicitly. There's no refresh flow - customer tokens are long-lived and
+// an expired one just sends the shopper back to sign in.
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
@@ -39,7 +40,11 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   return parsed as T;
 }
 
+function authHeaders(token?: string | null): Record<string, string> {
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 export const api = {
-  get: <T>(path: string) => request<T>(path, { method: "GET" }),
-  post: <T>(path: string, body?: unknown) => request<T>(path, { method: "POST", body }),
+  get: <T>(path: string, token?: string | null) => request<T>(path, { method: "GET", headers: authHeaders(token) }),
+  post: <T>(path: string, body?: unknown, token?: string | null) => request<T>(path, { method: "POST", body, headers: authHeaders(token) }),
 };

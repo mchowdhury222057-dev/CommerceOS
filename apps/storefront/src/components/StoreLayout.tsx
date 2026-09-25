@@ -1,8 +1,9 @@
 import { useEffect } from "react";
-import { Outlet, useParams } from "react-router-dom";
+import { Outlet, useLocation, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { getStoreInfo } from "../api/storefront";
 import { CartProvider } from "../cart/CartContext";
+import { CustomerAuthProvider } from "../account/CustomerAuthContext";
 import { applyThemeToDocument } from "../lib/theme";
 import { Nav } from "./Nav";
 import { Footer } from "./Footer";
@@ -23,10 +24,30 @@ import { AnnouncementBar } from "./sections/AnnouncementBar";
 export function StoreLayout() {
   const { storeSlug = "" } = useParams();
   const storeQuery = useQuery({ queryKey: ["store", storeSlug], queryFn: () => getStoreInfo(storeSlug) });
+  const { pathname, hash } = useLocation();
 
   useEffect(() => {
     if (storeQuery.data) applyThemeToDocument(storeQuery.data.theme);
   }, [storeQuery.data]);
+
+  // React Router's client-side <Link to="#hash"> navigation never triggers
+  // the browser's native hash-scroll (that only happens on a full page
+  // load with a plain <a href>) - this replicates it so Nav's Home/Shop/
+  // Categories links (and any other #anchor link) actually move the page
+  // instead of just changing the URL. Runs here, once, above every child
+  // route, rather than per-page, since it's the same behavior everywhere.
+  useEffect(() => {
+    if (hash) {
+      const id = decodeURIComponent(hash.slice(1));
+      const target = document.getElementById(id);
+      if (target) {
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
+    }
+    window.scrollTo({ top: 0 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname, hash]);
 
   if (storeQuery.isLoading) {
     return (
@@ -47,15 +68,17 @@ export function StoreLayout() {
   const store = storeQuery.data;
 
   return (
-    <CartProvider storeSlug={storeSlug}>
-      <div className="flex min-h-screen flex-col bg-surface-page">
-        <AnnouncementBar settings={store.layout.announcementBar} />
-        <Nav storeName={store.name} logoUrl={store.theme.logoUrl} showSearch={store.layout.header.showSearch} />
-        <div className="flex-1">
-          <Outlet context={store} />
+    <CustomerAuthProvider storeSlug={storeSlug}>
+      <CartProvider storeSlug={storeSlug}>
+        <div className="flex min-h-screen flex-col bg-surface-page">
+          <AnnouncementBar settings={store.layout.announcementBar} />
+          <Nav storeName={store.name} logoUrl={store.theme.logoUrl} showSearch={store.layout.header.showSearch} />
+          <div className="flex-1">
+            <Outlet context={store} />
+          </div>
+          <Footer storeName={store.name} settings={store.layout.footer} />
         </div>
-        <Footer storeName={store.name} settings={store.layout.footer} />
-      </div>
-    </CartProvider>
+      </CartProvider>
+    </CustomerAuthProvider>
   );
 }

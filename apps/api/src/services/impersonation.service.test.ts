@@ -1,13 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import jwt from "jsonwebtoken";
 
-// Per the "fix and fully implement Impersonate" milestone - startImpersonation
-// previously only checked the target Store exists; it now also verifies a
-// Store Owner exists for it, is ACTIVE, and the store is APPROVED (Section
-// 8's target rules), never trusting the Admin Panel UI to have filtered
-// this client-side first. Mocks Prisma/Redis/audit/event-bus the same way
-// audit-coverage.test.ts does.
-
 const mockWriteAuditLog = vi.fn().mockResolvedValue(undefined);
 vi.mock("../lib/audit.js", () => ({ writeAuditLog: mockWriteAuditLog }));
 

@@ -27,16 +27,22 @@ function shade(hex: string, amount: number): string {
   return `${clamp(r)} ${clamp(g)} ${clamp(b)}`;
 }
 
-// A light tint of a color (mixed toward white) - used for primary-subtle
-// (hover backgrounds, badges) the same way the app's own default teal
-// palette uses a pale version of itself.
-function tint(hex: string, ratio: number): string {
-  const clean = hex.replace("#", "");
-  const r = parseInt(clean.slice(0, 2), 16);
-  const g = parseInt(clean.slice(2, 4), 16);
-  const b = parseInt(clean.slice(4, 6), 16);
-  const mix = (channel: number) => Math.round(channel + (255 - channel) * ratio);
-  return `${mix(r)} ${mix(g)} ${mix(b)}`;
+// Mixes `hex` a small distance toward `towardHex` - used for
+// primary-subtle/surface-sunken (hover backgrounds, badges, COD/info
+// cards). Mixing toward the theme's OWN surface/text color, rather than
+// always toward white, is what makes this work on both light and dark
+// themes: on a dark theme (e.g. the Neon preset) it stays a dark, subtly
+// tinted background instead of collapsing to a near-white card that makes
+// the theme's light heading text unreadable on top of it.
+function mix(hex: string, towardHex: string, ratio: number): string {
+  const from = hex.replace("#", "");
+  const to = towardHex.replace("#", "");
+  const channel = (i: number) => {
+    const a = parseInt(from.slice(i, i + 2), 16);
+    const b = parseInt(to.slice(i, i + 2), 16);
+    return Math.round(a + (b - a) * ratio);
+  };
+  return `${channel(0)} ${channel(2)} ${channel(4)}`;
 }
 
 export function applyThemeToDocument(theme: ThemeSettings): void {
@@ -44,14 +50,14 @@ export function applyThemeToDocument(theme: ThemeSettings): void {
 
   root.setProperty("--color-primary", hexToTriplet(theme.colorPrimary));
   root.setProperty("--color-primary-hover", shade(theme.colorPrimary, -0.15));
-  root.setProperty("--color-primary-subtle", tint(theme.colorPrimary, 0.92));
+  root.setProperty("--color-primary-subtle", mix(theme.colorSurface, theme.colorPrimary, 0.12));
 
   root.setProperty("--color-accent", hexToTriplet(theme.colorAccent));
   root.setProperty("--color-accent-hover", shade(theme.colorAccent, -0.15));
 
   root.setProperty("--color-surface-page", hexToTriplet(theme.colorBackground));
   root.setProperty("--color-surface-card", hexToTriplet(theme.colorSurface));
-  root.setProperty("--color-surface-sunken", tint(theme.colorText, 0.94));
+  root.setProperty("--color-surface-sunken", mix(theme.colorSurface, theme.colorText, 0.06));
 
   root.setProperty("--color-text-primary", hexToTriplet(theme.colorText));
   root.setProperty("--color-text-secondary", hexToTriplet(theme.colorTextMuted));

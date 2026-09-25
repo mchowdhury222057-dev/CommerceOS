@@ -36,7 +36,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/products/new", label: "Add Product", icon: PackagePlus },
   { to: "/orders", label: "Orders", icon: ShoppingCart },
   { to: "/customers", label: "Customers", icon: Users },
-  { to: "/analytics", label: "Analytics", icon: BarChart3, comingSoon: true },
+  { to: "/analytics", label: "Analytics", icon: BarChart3 },
   { to: "/settings", label: "Settings", icon: Settings },
   { to: "/profile", label: "Profile", icon: User },
 ];

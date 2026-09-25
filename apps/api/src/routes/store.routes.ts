@@ -2,7 +2,9 @@ import { Router } from "express";
 import { requireApprovedStore, requireAuth, requireStoreAccess } from "../middleware/auth.js";
 import { asyncHandler } from "../middleware/error-handler.js";
 import { getStoreById } from "../services/store.service.js";
-import { getStoreDashboardSummary } from "../services/store-dashboard.service.js";
+import { ANALYTICS_RANGE_DAYS, getStoreAnalytics, getStoreDashboardSummary } from "../services/store-dashboard.service.js";
+import type { AnalyticsRangeDays } from "../services/store-dashboard.service.js";
+import { AppError } from "../lib/errors.js";
 import { customersRouter } from "./customers.routes.js";
 import { ordersRouter } from "./orders.routes.js";
 import { productsRouter } from "./products.routes.js";
@@ -39,6 +41,21 @@ storeRouter.get(
   asyncHandler(async (req, res) => {
     const summary = await getStoreDashboardSummary(req.params.storeId);
     res.json(summary);
+  }),
+);
+
+// Deeper analytics beyond the dashboard's own KPI cards - real
+// revenue/product/status aggregates over a selectable range.
+storeRouter.get(
+  "/:storeId/analytics",
+  requireApprovedStore,
+  asyncHandler(async (req, res) => {
+    const rangeParam = Number(req.query.range ?? 30);
+    if (!ANALYTICS_RANGE_DAYS.includes(rangeParam as AnalyticsRangeDays)) {
+      throw AppError.validation(`range must be one of ${ANALYTICS_RANGE_DAYS.join(", ")}`);
+    }
+    const analytics = await getStoreAnalytics(req.params.storeId, rangeParam as AnalyticsRangeDays);
+    res.json(analytics);
   }),
 );
 
